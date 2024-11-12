@@ -1,0 +1,13 @@
+Solicitud de integración
+
+application/json
+----------------
+
+{
+  "method": "$context.httpMethod",
+  "path": "$context.path",
+  "headers": {
+    "Authorization": "$input.params('Authorization')"
+  },
+  "body": $input.body
+}
