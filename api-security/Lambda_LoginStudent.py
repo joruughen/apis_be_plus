@@ -1,5 +1,6 @@
 import boto3
 import hashlib
+import json
 import uuid
 from datetime import datetime, timedelta
 from boto3.dynamodb.conditions import Key
@@ -14,7 +15,7 @@ def lambda_handler(event, context):
         body = event.get('body', {})
         if isinstance(body, str):
             body = json.loads(body)
-        
+
         # Retrieve required fields from the body
         tenant_id = body.get('tenant_id')
         student_email = body.get('student_email')
@@ -59,6 +60,7 @@ def lambda_handler(event, context):
         token_data = {
             'token': token,
             'student_id': student_data['student_id'],
+            'tenant_id': tenant_id,  # Add tenant_id to the token data
             'expires': expiration_time.strftime('%Y-%m-%d %H:%M:%S')
         }
 

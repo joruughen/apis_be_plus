@@ -1,0 +1,40 @@
+org: jorgemelgarejo
+service: api-security
+
+provider:
+  name: aws
+  runtime: python3.12
+  region: us-east-1
+  role: arn:aws:iam::232690452415:role/LabRole
+  stage: ${opt:stage, 'dev'}
+
+package:
+  individually: true
+
+functions:
+  LoginStudent:
+    handler: Lambda_LoginStudent.lambda_handler
+    memorySize: 512
+    timeout: 30
+    events:
+      - http:
+          path: login
+          method: post
+          integration: lambda
+          request:
+            template:
+              application/json: |
+                {
+                  "method": "$context.httpMethod",
+                  "path": "$context.path",
+                  "headers": {
+                    "Authorization": "$input.params('Authorization')"
+                  },
+                  "body": $input.body
+                }
+
+  ValidateAccessToken:
+    handler: Lambda_ValidateAccessToken.lambda_handler
+    memorySize: 512
+    timeout: 30
+    description: "Lambda function to validate access tokens"
