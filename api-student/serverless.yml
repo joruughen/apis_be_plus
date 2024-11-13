@@ -36,7 +36,7 @@ functions:
                 }
 
   GetByStudentId:
-    handler: Lambda_Get_By_Student_Id.lambda_handler
+    handler: Lambda_Get_Student.lambda_handler
     memorySize: 512
     timeout: 30
     environment:
@@ -58,7 +58,7 @@ functions:
                 }
 
   UpdateByStudentId:
-    handler: Lambda_Update_By_Student_Id.lambda_handler
+    handler: Lambda_Update_Student.lambda_handler
     memorySize: 512
     timeout: 30
     environment:
@@ -81,7 +81,7 @@ functions:
                 }
 
   DeleteByStudentId:
-    handler: Lambda_Delete_By_Student_Id.lambda_handler
+    handler: Lambda_Delete_Student.lambda_handler
     memorySize: 512
     timeout: 30
     environment:
