@@ -1,0 +1,111 @@
+service: jorgemelgarejo
+
+provider:
+  name: aws
+  runtime: python3.8
+  region: us-east-1
+  stage: dev
+  iamRoleARN: arn:aws:iam::767397712076:role/LabRole
+
+functions:
+  CreateStudent:
+    handler: apis_be_plus/Lambda_CreateStudent.lambda_handler
+    events:
+      - http:
+          path: students
+          method: post
+          integration: lambda
+          request:
+            template:
+              application/json: |
+                {
+                  "method": "$context.httpMethod",
+                  "path": "$context.path",
+                  "headers": {
+                    "Authorization": "$input.params('Authorization')"
+                  },
+                  "body": $input.body
+                }
+
+  LoginStudent:
+    handler: apis_be_plus/Lambda_LoginStudent.lambda_handler
+    events:
+      - http:
+          path: login
+          method: post
+          integration: lambda
+          request:
+            template:
+              application/json: |
+                {
+                  "method": "$context.httpMethod",
+                  "path": "$context.path",
+                  "headers": {
+                    "Authorization": "$input.params('Authorization')"
+                  },
+                  "body": $input.body
+                }
+
+  GetByStudentId:
+    handler: apis_be_plus/Lambda_Get_By_Student_Id.lambda_handler
+    events:
+      - http:
+          path: students/{studentId}
+          method: get
+          integration: lambda
+          request:
+            template:
+              application/json: |
+                {
+                  "method": "$context.httpMethod",
+                  "path": "$context.path",
+                  "headers": {
+                    "Authorization": "$input.params('Authorization')"
+                  },
+                  "pathParameters": {
+                    "studentId": "$input.params('studentId')"
+                  }
+                }
+
+  UpdateByStudentId:
+    handler: apis_be_plus/Lambda_Update_By_Student_Id.lambda_handler
+    events:
+      - http:
+          path: students/{studentId}
+          method: put
+          integration: lambda
+          request:
+            template:
+              application/json: |
+                {
+                  "method": "$context.httpMethod",
+                  "path": "$context.path",
+                  "headers": {
+                    "Authorization": "$input.params('Authorization')"
+                  },
+                  "pathParameters": {
+                    "studentId": "$input.params('studentId')"
+                  },
+                  "body": $input.body
+                }
+
+  DeleteByStudentId:
+    handler: apis_be_plus/Lambda_Delete_By_Student_Id.lambda_handler
+    events:
+      - http:
+          path: students/{studentId}
+          method: delete
+          integration: lambda
+          request:
+            template:
+              application/json: |
+                {
+                  "method": "$context.httpMethod",
+                  "path": "$context.path",
+                  "headers": {
+                    "Authorization": "$input.params('Authorization')"
+                  },
+                  "pathParameters": {
+                    "studentId": "$input.params('studentId')"
+                  }
+                }

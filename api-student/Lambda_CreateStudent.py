@@ -1,5 +1,6 @@
 import boto3
 import hashlib
+from datetime import datetime
 
 # Hash password
 def hash_password(password):
@@ -11,41 +12,47 @@ def lambda_handler(event, context):
     try:
         # Get required fields
         tenant_id = event.get('tenant_id')
+        student_id = event.get('student_id')
         student_email = event.get('student_email')
         password = event.get('password')
-        
+
         # Verify that required fields are present
-        if tenant_id and student_email and password:
+        if tenant_id and student_id and student_email and password:
             # Hash the password before storing it
             hashed_password = hash_password(password)
-            
+
+            # Get the current date and time for creation_date
+            creation_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
             # Build the main item with required fields
             item = {
                 'tenant_id': tenant_id,
-                'student_email': student_email,
+                'student_id': student_id,
                 'student_data': {
-                    'password': hashed_password
+                    'creation_date': creation_date,  # Set creation date to current time
+                    'student_name': event.get('student_name', 'Unknown'),  # Default to 'Unknown' if not provided
+                    'student_email': student_email,
+                    'password': hashed_password,
+                    'rockie_coins': event.get('rockie_coins', 0),  # Default to 0 if not provided
+                    'rockie_gems': event.get('rockie_gems', 0)    # Default to 0 if not provided
                 }
             }
 
-            # Optional fields to be included in student_data
-            optional_fields = [
-                'student_name', 'birthday', 'gender', 'creation_date',
-                'telephone', 'rockie_coins', 'rockie_gems'
-            ]
-            
+            # List of optional fields to add if present
+            optional_fields = ['birthday', 'gender', 'telephone']
+
             # Add optional fields to student_data if they are present in the event
             for field in optional_fields:
-                if event.get(field) is not None:
+                if event.get(field):
                     item['student_data'][field] = event.get(field)
-            
+
             # Connect to DynamoDB
             dynamodb = boto3.resource('dynamodb')
             t_students = dynamodb.Table('t_students')
-            
+
             # Store the student's data in the DynamoDB table
             t_students.put_item(Item=item)
-            
+
             # Return an HTTP 200 (OK) status code and success message
             message = {
                 'message': 'User registered successfully',
@@ -75,4 +82,3 @@ def lambda_handler(event, context):
             'statusCode': 500,
             'body': message
         }
-
