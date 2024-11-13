@@ -36,14 +36,14 @@ functions:
                 }
 
   GetByStudentId:
-    handler: Lambda_Get_Student.lambda_handler
+    handler: Lambda_Get_By_Student_Id.lambda_handler
     memorySize: 512
     timeout: 30
     environment:
       VALIDATE_FUNCTION_NAME: ${self:custom.validateTokenFunction}
     events:
       - http:
-          path: students/{studentId}
+          path: students
           method: get
           integration: lambda
           request:
@@ -54,21 +54,18 @@ functions:
                   "path": "$context.path",
                   "headers": {
                     "Authorization": "$input.params('Authorization')"
-                  },
-                  "pathParameters": {
-                    "studentId": "$input.params('studentId')"
                   }
                 }
 
   UpdateByStudentId:
-    handler: Lambda_Update_Student.lambda_handler
+    handler: Lambda_Update_By_Student_Id.lambda_handler
     memorySize: 512
     timeout: 30
     environment:
       VALIDATE_FUNCTION_NAME: ${self:custom.validateTokenFunction}
     events:
       - http:
-          path: students/{studentId}
+          path: students
           method: put
           integration: lambda
           request:
@@ -80,21 +77,18 @@ functions:
                   "headers": {
                     "Authorization": "$input.params('Authorization')"
                   },
-                  "pathParameters": {
-                    "studentId": "$input.params('studentId')"
-                  },
                   "body": $input.body
                 }
 
   DeleteByStudentId:
-    handler: Lambda_Delete_Student.lambda_handler
+    handler: Lambda_Delete_By_Student_Id.lambda_handler
     memorySize: 512
     timeout: 30
     environment:
       VALIDATE_FUNCTION_NAME: ${self:custom.validateTokenFunction}
     events:
       - http:
-          path: students/{studentId}
+          path: students
           method: delete
           integration: lambda
           request:
@@ -105,9 +99,6 @@ functions:
                   "path": "$context.path",
                   "headers": {
                     "Authorization": "$input.params('Authorization')"
-                  },
-                  "pathParameters": {
-                    "studentId": "$input.params('studentId')"
                   }
                 }
 
