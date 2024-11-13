@@ -10,7 +10,7 @@ provider:
 
 functions:
   CreateStudent:
-    handler: apis_be_plus/Lambda_CreateStudent.lambda_handler
+    handler: Lambda_CreateStudent.lambda_handler
     memorySize: 512
     timeout: 30
     events:
@@ -31,7 +31,7 @@ functions:
                 }
 
   LoginStudent:
-    handler: apis_be_plus/Lambda_LoginStudent.lambda_handler
+    handler: Lambda_LoginStudent.lambda_handler
     memorySize: 512
     timeout: 30
     events:
@@ -52,7 +52,7 @@ functions:
                 }
 
   GetByStudentId:
-    handler: apis_be_plus/Lambda_Get_By_Student_Id.lambda_handler
+    handler: Lambda_Get_By_Student_Id.lambda_handler
     memorySize: 512
     timeout: 30
     events:
@@ -75,7 +75,7 @@ functions:
                 }
 
   UpdateByStudentId:
-    handler: apis_be_plus/Lambda_Update_By_Student_Id.lambda_handler
+    handler: Lambda_Update_By_Student_Id.lambda_handler
     memorySize: 512
     timeout: 30
     events:
@@ -99,7 +99,7 @@ functions:
                 }
 
   DeleteByStudentId:
-    handler: apis_be_plus/Lambda_Delete_By_Student_Id.lambda_handler
+    handler: Lambda_Delete_By_Student_Id.lambda_handler
     memorySize: 512
     timeout: 30
     events:
