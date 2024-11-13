@@ -8,6 +8,9 @@ provider:
   role: arn:aws:iam::232690452415:role/LabRole
   stage: dev
 
+package:
+  individually: true  # Enables packaging each Lambda function independently
+
 functions:
   CreateStudent:
     handler: Lambda_CreateStudent.lambda_handler
@@ -120,3 +123,10 @@ functions:
                     "studentId": "$input.params('studentId')"
                   }
                 }
+
+  ValidateAccessToken:  # Updated function name
+    handler: Lambda_ValidateAccessToken.lambda_handler
+    memorySize: 512
+    timeout: 30
+    description: "Lambda function to validate access tokens"
+    # No HTTP event since this function is invoked internally by other Lambda functions
