@@ -14,7 +14,7 @@ def lambda_handler(event, context):
     # Obtener el nombre de la función de validación desde las variables de entorno
     validate_function_name = os.environ.get("VALIDATE_FUNCTION_NAME", "DefaultValidateFunctionName")
 
-    # Validar el token y extraer el student_id y tenant_id
+    # Validar el token
     lambda_client = boto3.client('lambda')
     payload_string = json.dumps({"token": token})
     invoke_response = lambda_client.invoke(
@@ -28,21 +28,36 @@ def lambda_handler(event, context):
     if response.get('statusCode') == 403:
         return {
             'statusCode': 403,
-            'body': 'Forbidden - Acceso No Autorizado'
+            'body': response.get('body', 'Acceso No Autorizado')
         }
 
-    # Extraer el student_id y tenant_id desde la respuesta de validación
-    student_id = response.get('student_id')
-    tenant_id = response.get('tenant_id')
+    # Ahora que el token es válido, extraemos `tenant_id` y `student_id` desde la tabla `t_access_tokens`
+    dynamodb = boto3.resource('dynamodb')
+    tokens_table = dynamodb.Table('t_access_tokens')
+    token_response = tokens_table.get_item(
+        Key={
+            'token': token
+        }
+    )
 
-    if not student_id or not tenant_id:
+    # Verificar si se obtuvieron los datos correctamente
+    if 'Item' not in token_response:
         return {
             'statusCode': 500,
-            'body': 'Error: Falta student_id o tenant_id en la respuesta de ValidateAccessToken'
+            'body': 'Error al obtener el tenant_id y student_id del token'
+        }
+
+    tenant_id = token_response['Item'].get('tenant_id')
+    student_id = token_response['Item'].get('student_id')
+
+    # Verificar que ambos valores estén presentes
+    if not tenant_id or not student_id:
+        return {
+            'statusCode': 500,
+            'body': 'Error: Falta tenant_id o student_id en el token almacenado'
         }
 
     # Conectar con DynamoDB y eliminar al estudiante
-    dynamodb = boto3.resource('dynamodb')
     t_students = dynamodb.Table('t_students')
 
     try:
