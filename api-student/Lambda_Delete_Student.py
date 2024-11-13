@@ -1,9 +1,14 @@
 import boto3
 import json
+import logging
 import os
 
+# Configurar el logger
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
 def lambda_handler(event, context):
-    # Obtener token de autorización
+    # Obtener el token de autorización desde los headers
     token = event['headers'].get('Authorization')
     if not token:
         return {
@@ -11,27 +16,35 @@ def lambda_handler(event, context):
             'body': 'Falta el token de autorización'
         }
 
-    # Obtener el nombre de la función de validación desde las variables de entorno
-    validate_function_name = os.environ.get("VALIDATE_FUNCTION_NAME", "DefaultValidateFunctionName")
+    # Obtener el nombre de la función de validación desde la variable de entorno
+    validate_function_name = os.environ.get('VALIDATE_FUNCTION_NAME')
+    if not validate_function_name:
+        return {
+            'statusCode': 500,
+            'body': 'Error interno del servidor: falta configuración de la función de validación'
+        }
 
-    # Validar el token
+    # Invocar la función Lambda ValidateAccessToken para validar el token
     lambda_client = boto3.client('lambda')
-    payload_string = json.dumps({"token": token})
+    payload_string = {"token": token}
     invoke_response = lambda_client.invoke(
         FunctionName=validate_function_name,
         InvocationType='RequestResponse',
-        Payload=payload_string
+        Payload=json.dumps(payload_string)
     )
-    response = json.loads(invoke_response['Payload'].read())
+
+    # Leer y cargar la respuesta de la invocación
+    response_payload = json.loads(invoke_response['Payload'].read())
+    logger.info("Response from ValidateAccessToken: %s", response_payload)
 
     # Verificar si el token es válido
-    if response.get('statusCode') == 403:
+    if response_payload.get('statusCode') == 403:
         return {
             'statusCode': 403,
-            'body': response.get('body', 'Acceso No Autorizado')
+            'body': response_payload.get('body', 'Acceso No Autorizado')
         }
 
-    # Ahora que el token es válido, extraemos `tenant_id` y `student_id` desde la tabla `t_access_tokens`
+    # Extraer tenant_id y student_id desde la tabla de tokens
     dynamodb = boto3.resource('dynamodb')
     tokens_table = dynamodb.Table('t_access_tokens')
     token_response = tokens_table.get_item(
@@ -40,7 +53,6 @@ def lambda_handler(event, context):
         }
     )
 
-    # Verificar si se obtuvieron los datos correctamente
     if 'Item' not in token_response:
         return {
             'statusCode': 500,
@@ -50,7 +62,6 @@ def lambda_handler(event, context):
     tenant_id = token_response['Item'].get('tenant_id')
     student_id = token_response['Item'].get('student_id')
 
-    # Verificar que ambos valores estén presentes
     if not tenant_id or not student_id:
         return {
             'statusCode': 500,
@@ -68,14 +79,13 @@ def lambda_handler(event, context):
             }
         )
 
-        # Responder con confirmación de eliminación
         return {
             'statusCode': 200,
             'body': 'Estudiante eliminado exitosamente'
         }
 
     except Exception as e:
-        print(f"Error al eliminar el estudiante: {e}")
+        logger.error(f"Error al eliminar el estudiante desde DynamoDB: {e}")
         return {
             'statusCode': 500,
             'body': 'Error interno del servidor'
