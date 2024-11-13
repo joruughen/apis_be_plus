@@ -1,4 +1,5 @@
-service: jorgemelgarejo
+org:jorgemelgarejo
+service: api-student
 
 provider:
   name: aws
