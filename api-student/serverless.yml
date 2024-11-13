@@ -10,61 +10,113 @@ provider:
 
 functions:
   CreateStudent:
-    handler: Lambda_CreateStudent.lambda_handler
+    handler: apis_be_plus/Lambda_CreateStudent.lambda_handler
     memorySize: 512
     timeout: 30
     events:
       - http:
-          path: /students
+          path: students
           method: post
-          cors: true
           integration: lambda
+          request:
+            template:
+              application/json: |
+                {
+                  "method": "$context.httpMethod",
+                  "path": "$context.path",
+                  "headers": {
+                    "Authorization": "$input.params('Authorization')"
+                  },
+                  "body": $input.body
+                }
 
   LoginStudent:
-    handler: Lambda_LoginStudent.lambda_handler
+    handler: apis_be_plus/Lambda_LoginStudent.lambda_handler
     memorySize: 512
     timeout: 30
     events:
       - http:
-          path: /login
+          path: login
           method: post
-          cors: true
           integration: lambda
+          request:
+            template:
+              application/json: |
+                {
+                  "method": "$context.httpMethod",
+                  "path": "$context.path",
+                  "headers": {
+                    "Authorization": "$input.params('Authorization')"
+                  },
+                  "body": $input.body
+                }
 
   GetByStudentId:
-    handler: Lambda_Get_By_Student_Id.lambda_handler
+    handler: apis_be_plus/Lambda_Get_By_Student_Id.lambda_handler
     memorySize: 512
     timeout: 30
     events:
       - http:
-          path: /students/{studentId}
+          path: students/{studentId}
           method: get
-          cors: true
           integration: lambda
+          request:
+            template:
+              application/json: |
+                {
+                  "method": "$context.httpMethod",
+                  "path": "$context.path",
+                  "headers": {
+                    "Authorization": "$input.params('Authorization')"
+                  },
+                  "pathParameters": {
+                    "studentId": "$input.params('studentId')"
+                  }
+                }
 
   UpdateByStudentId:
-    handler: Lambda_Update_By_Student_Id.lambda_handler
+    handler: apis_be_plus/Lambda_Update_By_Student_Id.lambda_handler
     memorySize: 512
     timeout: 30
     events:
       - http:
-          path: /students/{studentId}
+          path: students/{studentId}
           method: put
-          cors: true
           integration: lambda
+          request:
+            template:
+              application/json: |
+                {
+                  "method": "$context.httpMethod",
+                  "path": "$context.path",
+                  "headers": {
+                    "Authorization": "$input.params('Authorization')"
+                  },
+                  "pathParameters": {
+                    "studentId": "$input.params('studentId')"
+                  },
+                  "body": $input.body
+                }
 
   DeleteByStudentId:
-    handler: Lambda_Delete_By_Student_Id.lambda_handler
+    handler: apis_be_plus/Lambda_Delete_By_Student_Id.lambda_handler
     memorySize: 512
     timeout: 30
     events:
       - http:
-          path: /students/{studentId}
+          path: students/{studentId}
           method: delete
-          cors: true
           integration: lambda
-
-  ValidarTokenAcceso:
-    handler: Lambda_ValidarTokenAcceso.lambda_handler
-    memorySize: 512
-    timeout: 30
+          request:
+            template:
+              application/json: |
+                {
+                  "method": "$context.httpMethod",
+                  "path": "$context.path",
+                  "headers": {
+                    "Authorization": "$input.params('Authorization')"
+                  },
+                  "pathParameters": {
+                    "studentId": "$input.params('studentId')"
+                  }
+                }
