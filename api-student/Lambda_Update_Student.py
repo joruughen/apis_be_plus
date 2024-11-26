@@ -71,7 +71,7 @@ def lambda_handler(event, context):
         }
 
     # Obtener los datos de actualización desde el evento
-    update_data = event['body']
+    update_data = json.loads(event['body'])
 
     # Conectar con DynamoDB y actualizar datos del estudiante en la tabla `t_students`
     t_students = dynamodb.Table('t_students')
@@ -92,7 +92,8 @@ def lambda_handler(event, context):
         # Eliminar la última coma y el espacio
         update_expression = update_expression.rstrip(", ")
 
-        db_response = t_students.update_item(
+        # Realizar la actualización
+        t_students.update_item(
             Key={
                 'tenant_id': tenant_id,
                 'student_id': student_id
@@ -102,10 +103,24 @@ def lambda_handler(event, context):
             ReturnValues="UPDATED_NEW"
         )
 
-        # Responder con los datos actualizados
+        # Obtener toda la información actualizada del estudiante
+        updated_student_response = t_students.get_item(
+            Key={
+                'tenant_id': tenant_id,
+                'student_id': student_id
+            }
+        )
+
+        if 'Item' not in updated_student_response:
+            return {
+                'statusCode': 500,
+                'body': 'Error al obtener los datos completos del estudiante después de la actualización'
+            }
+
+        # Responder con toda la información del estudiante actualizada
         return {
             'statusCode': 200,
-            'body': db_response['Attributes']
+            'body': json.dumps(updated_student_response['Item'])
         }
 
     except Exception as e:
