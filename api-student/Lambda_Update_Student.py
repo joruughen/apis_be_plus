@@ -77,8 +77,9 @@ def lambda_handler(event, context):
             'body': 'Falta el cuerpo de la solicitud'
         }
 
+    stage = os.environ.get("STAGE", "dev")  # Obtendrá el stage definido en serverless.yml
     # Actualizar los datos del estudiante en la tabla `t_students`
-    t_students = dynamodb.Table('t_students')
+    t_students = dynamodb.Table(f"{stage}_t_students")
 
     try:
         # Construir expresión de actualización

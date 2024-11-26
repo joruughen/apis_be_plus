@@ -7,6 +7,9 @@ import os
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+# Obtener el stage desde las variables de entorno
+stage = os.environ.get("STAGE", "dev")  # Default a "dev" si no se define
+
 def lambda_handler(event, context):
     # Obtener el token de autorización desde los headers
     token = event['headers'].get('Authorization')
@@ -46,7 +49,7 @@ def lambda_handler(event, context):
 
     # Extraer tenant_id y student_id desde la tabla de tokens
     dynamodb = boto3.resource('dynamodb')
-    tokens_table = dynamodb.Table('t_access_tokens')
+    tokens_table = dynamodb.Table(f"{stage}_t_access_tokens")
     token_response = tokens_table.get_item(
         Key={
             'token': token
@@ -69,7 +72,7 @@ def lambda_handler(event, context):
         }
 
     # Conectar con DynamoDB y eliminar al estudiante
-    t_students = dynamodb.Table('t_students')
+    t_students = dynamodb.Table(f"{stage}_t_students")
 
     try:
         db_response = t_students.delete_item(

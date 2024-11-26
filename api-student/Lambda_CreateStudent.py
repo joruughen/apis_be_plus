@@ -1,5 +1,6 @@
 import boto3
 import hashlib
+import os
 from datetime import datetime
 
 # Function to hash the password
@@ -23,7 +24,9 @@ def lambda_handler(event, context):
         if tenant_id and student_id and student_email and password:
             # Connect to DynamoDB
             dynamodb = boto3.resource('dynamodb')
-            t_students = dynamodb.Table('t_students')
+            # Obtener el stage desde las variables de entorno
+            stage = os.environ.get("STAGE", "dev")  # Default a "dev" si no se define
+            t_students = dynamodb.Table(f"{stage}_t_students")
 
             # Check if the student already exists by student_id
             existing_student = t_students.get_item(
