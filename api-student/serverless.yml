@@ -35,7 +35,7 @@ functions:
                   "body": $input.body
                 }
 
-  GetByStudentId:
+  GetStudent:
     handler: Lambda_Get_Student.lambda_handler
     memorySize: 512
     timeout: 30
@@ -57,7 +57,7 @@ functions:
                   }
                 }
 
-  UpdateByStudentId:
+  UpdateStudent:
     handler: Lambda_Update_Student.lambda_handler
     memorySize: 512
     timeout: 30
@@ -80,7 +80,7 @@ functions:
                   "body": $input.body
                 }
 
-  DeleteByStudentId:
+  DeleteStudent:
     handler: Lambda_Delete_Student.lambda_handler
     memorySize: 512
     timeout: 30
