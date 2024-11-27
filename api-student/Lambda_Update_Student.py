@@ -8,6 +8,9 @@ from decimal import Decimal
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+
+
+
 # Helper para convertir Decimal a tipos JSON serializables
 def convert_decimal(obj):
     if isinstance(obj, list):
@@ -20,6 +23,10 @@ def convert_decimal(obj):
         return obj
 
 def lambda_handler(event, context):
+
+    # Obtener el stage desde las variables de entorno
+    stage = os.environ.get("STAGE", "dev")  # Default a "dev" si no se define
+
     # Obtener el token de autorización desde los headers
     token = event['headers'].get('Authorization')
     if not token:
@@ -30,7 +37,7 @@ def lambda_handler(event, context):
 
     # Validar el token con DynamoDB
     dynamodb = boto3.resource('dynamodb')
-    tokens_table = dynamodb.Table('t_access_tokens')
+    tokens_table = dynamodb.Table(f"{stage}_t_access_tokens")
 
     token_response = tokens_table.get_item(
         Key={

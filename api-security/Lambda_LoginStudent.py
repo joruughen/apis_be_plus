@@ -69,7 +69,7 @@ def lambda_handler(event, context):
         }
 
         # Store the token in the t_access_tokens table
-        t_tokens = dynamodb.Table('t_access_tokens')
+        t_tokens = dynamodb.Table(f"{stage}_t_access_tokens")
         t_tokens.put_item(Item=token_data)
 
         # Return a success message with the token
