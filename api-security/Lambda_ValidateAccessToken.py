@@ -1,12 +1,16 @@
 import boto3
+import os
 from datetime import datetime
+
+# Obtener el stage desde las variables de entorno
+stage = os.environ.get("STAGE", "dev")  # Default a "dev" si no se define
 
 def lambda_handler(event, context):
     # Entrada (json)
     token = event['token']
     # Proceso
     dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table('t_access_tokens')
+    table = dynamodb.Table(f"{stage}_t_access_tokens")
     response = table.get_item(
         Key={
             'token': token

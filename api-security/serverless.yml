@@ -16,6 +16,8 @@ functions:
     handler: Lambda_LoginStudent.lambda_handler
     memorySize: 512
     timeout: 30
+    environment:
+      STAGE: ${self:provider.stage}  # Agregar la variable de entorno STAGE
     events:
       - http:
           path: login
@@ -38,3 +40,6 @@ functions:
     memorySize: 512
     timeout: 30
     description: "Lambda function to validate access tokens"
+    environment:
+      STAGE: ${self:provider.stage}  # Agregar la variable de entorno STAGE
+

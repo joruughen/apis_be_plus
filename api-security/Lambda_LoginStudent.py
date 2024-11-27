@@ -2,8 +2,12 @@ import boto3
 import hashlib
 import json
 import uuid
+import os
 from datetime import datetime, timedelta
 from boto3.dynamodb.conditions import Key
+
+# Obtener el stage desde las variables de entorno
+stage = os.environ.get("STAGE", "dev")  # Default a "dev" si no se define
 
 # Function to hash the password
 def hash_password(password):
@@ -31,7 +35,7 @@ def lambda_handler(event, context):
         # Hash the password to compare with stored hash
         hashed_password = hash_password(password)
         dynamodb = boto3.resource('dynamodb')
-        t_students = dynamodb.Table('t_students')
+        t_students = dynamodb.Table(f"{stage}_t_students")
 
         # Query the GSI to find the student by email
         response = t_students.query(
