@@ -102,12 +102,11 @@ def lambda_handler(event, context):
             'body': 'Falta el cuerpo de la solicitud'
         }
 
-    # Verificar si el cuerpo contiene actualizaciones
-    updates = body.get('updates', {})
-    if not updates:
+    # Verificar que el cuerpo tenga datos
+    if not body:
         return {
             'statusCode': 400,
-            'body': 'El cuerpo de la solicitud no contiene actualizaciones'
+            'body': 'El cuerpo de la solicitud no contiene datos para actualizar'
         }
 
     # Conectar con DynamoDB y actualizar los datos del rockie en la tabla `t_rockies`
@@ -118,7 +117,7 @@ def lambda_handler(event, context):
         update_expression = "SET "
         expression_attribute_values = {}
 
-        for key, value in updates.items():
+        for key, value in body.items():
             # Convertir claves para DynamoDB si contienen puntos (como rockie_data.level)
             key_for_update = key.replace('.', '_')
             update_expression += f"{key} = :{key_for_update}, "
