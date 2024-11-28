@@ -1,0 +1,115 @@
+org: jorgemelgarejo
+service: api-activities
+
+provider:
+  name: aws
+  runtime: nodejs22.x
+  region: us-east-1
+  role: arn:aws:iam::232690452415:role/LabRole
+  stage: ${opt:stage, 'dev'}
+
+package:
+  individually: true
+
+functions:
+  CreateActivity:
+    handler: dist/createActivity.handler
+    memorySize: 512
+    timeout: 30
+    environment:
+      VALIDATE_FUNCTION_NAME: ${self:custom.validateTokenFunction}
+      TABLE_NAME: ${self:custom.tableName}
+      STAGE: ${self:provider.stage}
+    events:
+      - http:
+          path: activities
+          method: post
+          integration: lambda
+          request:
+            template:
+              application/json: |
+                {
+                  "method": "$context.httpMethod",
+                  "path": "$context.path",
+                  "headers": {
+                    "Authorization": "$input.params('Authorization')"
+                  },
+                  "body": $input.body
+                }
+
+  GetActivities:
+    handler: dist/getActivities.handler
+    memorySize: 512
+    timeout: 30
+    environment:
+      VALIDATE_FUNCTION_NAME: ${self:custom.validateTokenFunction}
+      TABLE_NAME: ${self:custom.tableName}
+      STAGE: ${self:provider.stage}
+    events:
+      - http:
+          path: activities
+          method: get
+          integration: lambda
+          request:
+            template:
+              application/json: |
+                {
+                  "method": "$context.httpMethod",
+                  "path": "$context.path",
+                  "headers": {
+                    "Authorization": "$input.params('Authorization')"
+                  }
+                }
+
+  UpdateActivity:
+    handler: dist/updateActivity.handler
+    memorySize: 512
+    timeout: 30
+    environment:
+      VALIDATE_FUNCTION_NAME: ${self:custom.validateTokenFunction}
+      TABLE_NAME: ${self:custom.tableName}
+      STAGE: ${self:provider.stage}
+    events:
+      - http:
+          path: activities
+          method: put
+          integration: lambda
+          request:
+            template:
+              application/json: |
+                {
+                  "method": "$context.httpMethod",
+                  "path": "$context.path",
+                  "headers": {
+                    "Authorization": "$input.params('Authorization')"
+                  },
+                  "body": $input.body
+                }
+
+  DeleteActivity:
+    handler: dist/deleteActivity.handler
+    memorySize: 512
+    timeout: 30
+    environment:
+      VALIDATE_FUNCTION_NAME: ${self:custom.validateTokenFunction}
+      TABLE_NAME: ${self:custom.tableName}
+      STAGE: ${self:provider.stage}
+    events:
+      - http:
+          path: activities
+          method: delete
+          integration: lambda
+          request:
+            template:
+              application/json: |
+                {
+                  "method": "$context.httpMethod",
+                  "path": "$context.path",
+                  "headers": {
+                    "Authorization": "$input.params('Authorization')"
+                  }
+                }
+
+custom:
+  validateTokenFunction: api-security-${self:provider.stage}-ValidateAccessToken
+  tableName: dev_t_activities
