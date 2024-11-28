@@ -102,6 +102,14 @@ def lambda_handler(event, context):
             'body': 'Falta el cuerpo de la solicitud'
         }
 
+    # Verificar si el cuerpo contiene actualizaciones
+    updates = body.get('updates', {})
+    if not updates:
+        return {
+            'statusCode': 400,
+            'body': 'El cuerpo de la solicitud no contiene actualizaciones'
+        }
+
     # Conectar con DynamoDB y actualizar los datos del rockie en la tabla `t_rockies`
     t_rockies = dynamodb.Table(f"{stage}_t_rockies")
 
@@ -110,16 +118,21 @@ def lambda_handler(event, context):
         update_expression = "SET "
         expression_attribute_values = {}
 
-        for key, value in body.get('updates', {}).items():
-            if key.startswith("rockie_data."):
-                update_expression += f"{key} = :{key.replace('.', '_')}, "
-                expression_attribute_values[f":{key.replace('.', '_')}"] = value
-            else:
-                update_expression += f"{key} = :{key}, "
-                expression_attribute_values[f":{key}"] = value
+        for key, value in updates.items():
+            # Convertir claves para DynamoDB si contienen puntos (como rockie_data.level)
+            key_for_update = key.replace('.', '_')
+            update_expression += f"{key} = :{key_for_update}, "
+            expression_attribute_values[f":{key_for_update}"] = value
 
-        # Eliminar la última coma y el espacio
+        # Eliminar la última coma y espacio
         update_expression = update_expression.rstrip(", ")
+
+        # Validar que expression_attribute_values no esté vacío
+        if not expression_attribute_values:
+            return {
+                'statusCode': 400,
+                'body': 'No se encontraron valores válidos para actualizar'
+            }
 
         # Realizar la actualización
         t_rockies.update_item(
