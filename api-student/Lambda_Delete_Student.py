@@ -71,20 +71,31 @@ def lambda_handler(event, context):
             'body': 'Error: Falta tenant_id o student_id en el token almacenado'
         }
 
-    # Conectar con DynamoDB y eliminar al estudiante
+    # Conectar con DynamoDB y verificar si el estudiante existe
     t_students = dynamodb.Table(f"{stage}_t_students")
 
     try:
-        db_response = t_students.delete_item(
-            Key={
-                'tenant_id': tenant_id,
-                'student_id': student_id
-            }
+        # Verificar si el estudiante existe antes de eliminarlo
+        response = t_students.get_item(
+            Key={'tenant_id': tenant_id, 'student_id': student_id}
         )
 
+        # Si no existe, devolver un mensaje indicando que no se encontró el estudiante
+        if 'Item' not in response:
+            return {
+                'statusCode': 404,
+                'body': {'message': 'El estudiante no existe'}
+            }
+
+        # Si existe, eliminar el estudiante de la tabla
+        t_students.delete_item(
+            Key={'tenant_id': tenant_id, 'student_id': student_id}
+        )
+
+        # Devolver una respuesta de éxito
         return {
             'statusCode': 200,
-            'body': 'Estudiante eliminado exitosamente'
+            'body': {'message': 'Estudiante eliminado con éxito'}
         }
 
     except Exception as e:

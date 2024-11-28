@@ -1,41 +1,106 @@
-
 import boto3
-import os
 import json
+import logging
+import os
+
+# Configurar el logger
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+# Obtener el stage desde las variables de entorno
+stage = os.environ.get("STAGE", "dev")  # Default a "dev" si no se define
 
 def lambda_handler(event, context):
+    # Obtener el token de autorización desde los headers
+    token = event['headers'].get('Authorization')
+    if not token:
+        return {
+            'statusCode': 400,
+            'body': 'Falta el token de autorización'
+        }
+
+    # Obtener el nombre de la función de validación desde la variable de entorno
+    validate_function_name = os.environ.get('VALIDATE_FUNCTION_NAME')
+    if not validate_function_name:
+        return {
+            'statusCode': 500,
+            'body': 'Error interno del servidor: falta configuración de la función de validación'
+        }
+
+    # Invocar la función Lambda ValidateAccessToken para validar el token
+    lambda_client = boto3.client('lambda')
+    payload_string = {"token": token}
+    invoke_response = lambda_client.invoke(
+        FunctionName=validate_function_name,
+        InvocationType='RequestResponse',
+        Payload=json.dumps(payload_string)
+    )
+
+    # Leer y cargar la respuesta de la invocación
+    response_payload = json.loads(invoke_response['Payload'].read())
+    logger.info("Response from ValidateAccessToken: %s", response_payload)
+
+    # Verificar si el token es válido
+    if response_payload.get('statusCode') == 403:
+        return {
+            'statusCode': 403,
+            'body': response_payload.get('body', 'Acceso No Autorizado')
+        }
+
+    # Extraer tenant_id y student_id desde la tabla de tokens
+    dynamodb = boto3.resource('dynamodb')
+    tokens_table = dynamodb.Table(f"{stage}_t_access_tokens")
+    token_response = tokens_table.get_item(
+        Key={
+            'token': token
+        }
+    )
+
+    if 'Item' not in token_response:
+        return {
+            'statusCode': 500,
+            'body': 'Error al obtener el tenant_id y student_id del token'
+        }
+
+    tenant_id = token_response['Item'].get('tenant_id')
+    student_id = token_response['Item'].get('student_id')
+
+    if not tenant_id or not student_id:
+        return {
+            'statusCode': 500,
+            'body': 'Error: Falta tenant_id o student_id en el token almacenado'
+        }
+
+    # Conectar con DynamoDB y verificar si el rockie existe
+    t_rockies = dynamodb.Table(f"{stage}_t_rockies")
+
     try:
-        body = event.get('body', {})
-        if isinstance(body, str):
-            body = json.loads(body)
-
-        tenant_id = body.get('tenant_id')
-        student_id = body.get('student_id')
-
-        if not tenant_id or not student_id:
-            return {
-                'statusCode': 400,
-                'body': {'error': 'Missing tenant_id or student_id'}
-            }
-
-        dynamodb = boto3.resource('dynamodb')
-        stage = os.environ.get("STAGE", "dev")
-        t_rockies = dynamodb.Table(f"{stage}_t_rockies")
-
-        t_rockies.delete_item(
-            Key={
-                'tenant_id': tenant_id,
-                'student_id': student_id
-            }
+        # Verificar si el rockie existe antes de eliminarlo
+        response = t_rockies.get_item(
+            Key={'tenant_id': tenant_id, 'student_id': student_id}
         )
 
+        # Si no existe, devolver un mensaje indicando que no se encontró el rockie
+        if 'Item' not in response:
+            return {
+                'statusCode': 404,
+                'body': {'message': 'El rockie no existe'}
+            }
+
+        # Si existe, eliminar el rockie de la tabla
+        t_rockies.delete_item(
+            Key={'tenant_id': tenant_id, 'student_id': student_id}
+        )
+
+        # Devolver una respuesta de éxito
         return {
             'statusCode': 200,
-            'body': {'message': 'Rockie deleted successfully'}
+            'body': {'message': 'Rockie eliminado con éxito'}
         }
 
     except Exception as e:
+        logger.error(f"Error al eliminar el rockie desde DynamoDB: {e}")
         return {
             'statusCode': 500,
-            'body': {'error': str(e)}
+            'body': 'Error interno del servidor'
         }

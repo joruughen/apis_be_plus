@@ -1,8 +1,8 @@
-
 import boto3
 import logging
 import os
 import json
+from datetime import datetime
 from decimal import Decimal
 
 # Configurar el logger
@@ -65,9 +65,7 @@ def lambda_handler(event, context):
     dynamodb = boto3.resource('dynamodb')
     tokens_table = dynamodb.Table(f"{stage}_t_access_tokens")
     token_response = tokens_table.get_item(
-        Key={
-            'token': token
-        }
+        Key={'token': token}
     )
 
     # Verificar si se obtuvieron los datos correctamente
@@ -84,10 +82,10 @@ def lambda_handler(event, context):
     if not tenant_id or not student_id:
         return {
             'statusCode': 500,
-            'body': 'Error: Falta tenant_id o student_id en el token almacenado'
+            'body': 'Faltan tenant_id o student_id en el token almacenado'
         }
 
-    # Obtener datos del cuerpo del evento
+    # Obtener los datos del cuerpo del evento (los datos que se deben actualizar)
     if 'body' in event:
         try:
             body = json.loads(event['body']) if isinstance(event['body'], str) else event['body']
@@ -102,13 +100,6 @@ def lambda_handler(event, context):
             'body': 'Falta el cuerpo de la solicitud'
         }
 
-    # Verificar que el cuerpo tenga datos
-    if not body:
-        return {
-            'statusCode': 400,
-            'body': 'El cuerpo de la solicitud no contiene datos para actualizar'
-        }
-
     # Conectar con DynamoDB y actualizar los datos del rockie en la tabla `t_rockies`
     t_rockies = dynamodb.Table(f"{stage}_t_rockies")
 
@@ -117,16 +108,19 @@ def lambda_handler(event, context):
         update_expression = "SET "
         expression_attribute_values = {}
 
+        # Actualizar los campos dentro de `rockie_data` correctamente
         for key, value in body.items():
-            # Convertir claves para DynamoDB si contienen puntos (como rockie_data.level)
-            key_for_update = key.replace('.', '_')
-            update_expression += f"{key} = :{key_for_update}, "
-            expression_attribute_values[f":{key_for_update}"] = value
+            if key.startswith('rockie_data.'):  # Si la clave está en el objeto `rockie_data`
+                key_for_update = key.replace('.', '_')  # Reemplazar los puntos por guiones bajos
+                update_expression += f"rockie_data.{key_for_update} = :{key_for_update}, "
+                expression_attribute_values[f":{key_for_update}"] = value
+            else:
+                update_expression += f"{key} = :{key}, "
+                expression_attribute_values[f":{key}"] = value
 
         # Eliminar la última coma y espacio
         update_expression = update_expression.rstrip(", ")
 
-        # Validar que expression_attribute_values no esté vacío
         if not expression_attribute_values:
             return {
                 'statusCode': 400,
@@ -135,20 +129,14 @@ def lambda_handler(event, context):
 
         # Realizar la actualización
         t_rockies.update_item(
-            Key={
-                'tenant_id': tenant_id,
-                'student_id': student_id
-            },
+            Key={'tenant_id': tenant_id, 'student_id': student_id},
             UpdateExpression=update_expression,
             ExpressionAttributeValues=expression_attribute_values
         )
 
         # Obtener los datos completos del rockie actualizado
         updated_rockie_response = t_rockies.get_item(
-            Key={
-                'tenant_id': tenant_id,
-                'student_id': student_id
-            }
+            Key={'tenant_id': tenant_id, 'student_id': student_id}
         )
 
         if 'Item' not in updated_rockie_response:
