@@ -22,6 +22,7 @@ def convert_decimal(obj):
         return obj
 
 def lambda_handler(event, context):
+
     # Obtener el stage desde las variables de entorno
     stage = os.environ.get("STAGE", "dev")  # Default a "dev" si no se define
 
@@ -30,7 +31,7 @@ def lambda_handler(event, context):
     if not token:
         return {
             'statusCode': 400,
-            'body': {'error': 'Falta el token de autorización'}
+            'body': 'Falta el token de autorización'
         }
 
     # Validar el token con DynamoDB
@@ -46,7 +47,7 @@ def lambda_handler(event, context):
     if 'Item' not in token_response:
         return {
             'statusCode': 403,
-            'body': {'error': 'Token no existe'}
+            'body': 'Token no existe'
         }
 
     # Verificar expiración del token
@@ -55,7 +56,7 @@ def lambda_handler(event, context):
     if now > expires:
         return {
             'statusCode': 403,
-            'body': {'error': 'Token expirado'}
+            'body': 'Token expirado'
         }
 
     tenant_id = token_response['Item']['tenant_id']
@@ -64,7 +65,7 @@ def lambda_handler(event, context):
     if not tenant_id or not student_id:
         return {
             'statusCode': 500,
-            'body': {'error': 'Faltan tenant_id o student_id en el token'}
+            'body': 'Faltan tenant_id o student_id en el token'
         }
 
     # Obtener datos del cuerpo del evento
@@ -74,12 +75,12 @@ def lambda_handler(event, context):
         except json.JSONDecodeError:
             return {
                 'statusCode': 400,
-                'body': {'error': 'El cuerpo de la solicitud no es un JSON válido'}
+                'body': 'El cuerpo de la solicitud no es un JSON válido'
             }
     else:
         return {
             'statusCode': 400,
-            'body': {'error': 'Falta el cuerpo de la solicitud'}
+            'body': 'Falta el cuerpo de la solicitud'
         }
 
     # Conectar con DynamoDB y actualizar los datos del rockie en la tabla `t_rockies`
@@ -90,15 +91,14 @@ def lambda_handler(event, context):
         update_expression = "SET "
         expression_attribute_values = {}
 
-        for key, value in body.get('updates', {}).items():
-            if key.startswith("rockie_data."):
-                update_expression += f"{key} = :{key.replace('.', '_')}, "
-                expression_attribute_values[f":{key.replace('.', '_')}"] = value
+        for key, value in body.items():
+            if key in ["level", "experience", "rockie_data"]:
+                update_expression += f"{key} = :{key}, "
             else:
                 update_expression += f"{key} = :{key}, "
-                expression_attribute_values[f":{key}"] = value
+            expression_attribute_values[f":{key}"] = value
 
-        # Eliminar la última coma y espacio
+        # Eliminar la última coma y el espacio
         update_expression = update_expression.rstrip(", ")
 
         # Realizar la actualización
@@ -122,7 +122,7 @@ def lambda_handler(event, context):
         if 'Item' not in updated_rockie_response:
             return {
                 'statusCode': 500,
-                'body': {'error': 'Error al obtener los datos actualizados del rockie'}
+                'body': 'Error al obtener los datos actualizados del rockie'
             }
 
         # Convertir los Decimals a tipos serializables
@@ -131,12 +131,12 @@ def lambda_handler(event, context):
         # Devolver los datos actualizados
         return {
             'statusCode': 200,
-            'body': rockie_data
+            'body': rockie_data  # Sin json.dumps()
         }
 
     except Exception as e:
         logger.error(f"Error al actualizar los datos del rockie: {str(e)}")
         return {
             'statusCode': 500,
-            'body': {'error': f"Error interno del servidor: {str(e)}"}
+            'body': f"Error interno del servidor: {str(e)}"
         }
