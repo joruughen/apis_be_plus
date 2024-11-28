@@ -3,7 +3,6 @@ import boto3
 import logging
 import os
 import json
-from datetime import datetime
 from decimal import Decimal
 
 # Configurar el logger
@@ -34,38 +33,58 @@ def lambda_handler(event, context):
             'body': 'Falta el token de autorización'
         }
 
-    # Validar el token con DynamoDB
+    # Obtener el nombre de la función de validación desde la variable de entorno
+    validate_function_name = os.environ.get('VALIDATE_FUNCTION_NAME')
+    if not validate_function_name:
+        return {
+            'statusCode': 500,
+            'body': 'Error interno del servidor: falta configuración de la función de validación'
+        }
+
+    # Invocar la función Lambda ValidateAccessToken para validar el token
+    lambda_client = boto3.client('lambda')
+    payload_string = {"token": token}
+    invoke_response = lambda_client.invoke(
+        FunctionName=validate_function_name,
+        InvocationType='RequestResponse',
+        Payload=json.dumps(payload_string)
+    )
+
+    # Leer y cargar la respuesta de la invocación
+    response_payload = json.loads(invoke_response['Payload'].read())
+    logger.info("Response from ValidateAccessToken: %s", response_payload)
+
+    # Verificar si el token es válido
+    if response_payload.get('statusCode') == 403:
+        return {
+            'statusCode': 403,
+            'body': response_payload.get('body', 'Acceso No Autorizado')
+        }
+
+    # Ahora que el token es válido, extraemos `tenant_id` y `student_id` desde la tabla `t_access_tokens`
     dynamodb = boto3.resource('dynamodb')
     tokens_table = dynamodb.Table(f"{stage}_t_access_tokens")
-
     token_response = tokens_table.get_item(
         Key={
             'token': token
         }
     )
 
+    # Verificar si se obtuvieron los datos correctamente
     if 'Item' not in token_response:
         return {
-            'statusCode': 403,
-            'body': 'Token no existe'
+            'statusCode': 500,
+            'body': 'Error al obtener el tenant_id y student_id del token'
         }
 
-    # Verificar expiración del token
-    expires = token_response['Item']['expires']
-    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    if now > expires:
-        return {
-            'statusCode': 403,
-            'body': 'Token expirado'
-        }
+    tenant_id = token_response['Item'].get('tenant_id')
+    student_id = token_response['Item'].get('student_id')
 
-    tenant_id = token_response['Item']['tenant_id']
-    student_id = token_response['Item']['student_id']
-
+    # Verificar que ambos valores estén presentes
     if not tenant_id or not student_id:
         return {
             'statusCode': 500,
-            'body': 'Faltan tenant_id o student_id en el token'
+            'body': 'Error: Falta tenant_id o student_id en el token almacenado'
         }
 
     # Obtener datos del cuerpo del evento
@@ -91,12 +110,13 @@ def lambda_handler(event, context):
         update_expression = "SET "
         expression_attribute_values = {}
 
-        for key, value in body.items():
-            if key in ["level", "experience", "rockie_data"]:
-                update_expression += f"{key} = :{key}, "
+        for key, value in body.get('updates', {}).items():
+            if key.startswith("rockie_data."):
+                update_expression += f"{key} = :{key.replace('.', '_')}, "
+                expression_attribute_values[f":{key.replace('.', '_')}"] = value
             else:
                 update_expression += f"{key} = :{key}, "
-            expression_attribute_values[f":{key}"] = value
+                expression_attribute_values[f":{key}"] = value
 
         # Eliminar la última coma y el espacio
         update_expression = update_expression.rstrip(", ")
@@ -131,7 +151,7 @@ def lambda_handler(event, context):
         # Devolver los datos actualizados
         return {
             'statusCode': 200,
-            'body': rockie_data  # Sin json.dumps()
+            'body': rockie_data
         }
 
     except Exception as e:
