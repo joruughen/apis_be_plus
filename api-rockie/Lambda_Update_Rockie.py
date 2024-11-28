@@ -1,37 +1,107 @@
 
 import boto3
+import logging
 import os
 import json
+from datetime import datetime
+from decimal import Decimal
+
+# Configurar el logger
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+# Helper para convertir Decimal a tipos JSON serializables
+def convert_decimal(obj):
+    if isinstance(obj, list):
+        return [convert_decimal(i) for i in obj]
+    elif isinstance(obj, dict):
+        return {k: convert_decimal(v) for k, v in obj.items()}
+    elif isinstance(obj, Decimal):
+        return int(obj) if obj % 1 == 0 else float(obj)
+    else:
+        return obj
 
 def lambda_handler(event, context):
-    try:
-        body = event.get('body', {})
-        if isinstance(body, str):
-            body = json.loads(body)
+    # Obtener el stage desde las variables de entorno
+    stage = os.environ.get("STAGE", "dev")  # Default a "dev" si no se define
 
-        tenant_id = body.get('tenant_id')
-        student_id = body.get('student_id')
-        updates = body.get('updates', {})
+    # Obtener el token de autorización desde los headers
+    token = event['headers'].get('Authorization')
+    if not token:
+        return {
+            'statusCode': 400,
+            'body': {'error': 'Falta el token de autorización'}
+        }
 
-        if not tenant_id or not student_id or not updates:
+    # Validar el token con DynamoDB
+    dynamodb = boto3.resource('dynamodb')
+    tokens_table = dynamodb.Table(f"{stage}_t_access_tokens")
+
+    token_response = tokens_table.get_item(
+        Key={
+            'token': token
+        }
+    )
+
+    if 'Item' not in token_response:
+        return {
+            'statusCode': 403,
+            'body': {'error': 'Token no existe'}
+        }
+
+    # Verificar expiración del token
+    expires = token_response['Item']['expires']
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    if now > expires:
+        return {
+            'statusCode': 403,
+            'body': {'error': 'Token expirado'}
+        }
+
+    tenant_id = token_response['Item']['tenant_id']
+    student_id = token_response['Item']['student_id']
+
+    if not tenant_id or not student_id:
+        return {
+            'statusCode': 500,
+            'body': {'error': 'Faltan tenant_id o student_id en el token'}
+        }
+
+    # Obtener datos del cuerpo del evento
+    if 'body' in event:
+        try:
+            body = json.loads(event['body']) if isinstance(event['body'], str) else event['body']
+        except json.JSONDecodeError:
             return {
                 'statusCode': 400,
-                'body': {'error': 'Missing tenant_id, student_id, or updates'}
+                'body': {'error': 'El cuerpo de la solicitud no es un JSON válido'}
             }
+    else:
+        return {
+            'statusCode': 400,
+            'body': {'error': 'Falta el cuerpo de la solicitud'}
+        }
 
-        dynamodb = boto3.resource('dynamodb')
-        stage = os.environ.get("STAGE", "dev")
-        t_rockies = dynamodb.Table(f"{stage}_t_rockies")
+    # Conectar con DynamoDB y actualizar los datos del rockie en la tabla `t_rockies`
+    t_rockies = dynamodb.Table(f"{stage}_t_rockies")
 
+    try:
+        # Construir expresión de actualización
         update_expression = "SET "
         expression_attribute_values = {}
 
-        for key, value in updates.items():
-            update_expression += f"{key} = :{key}, "
-            expression_attribute_values[f":{key}"] = value
+        for key, value in body.get('updates', {}).items():
+            if key.startswith("rockie_data."):
+                update_expression += f"{key} = :{key.replace('.', '_')}, "
+                expression_attribute_values[f":{key.replace('.', '_')}"] = value
+            else:
+                update_expression += f"{key} = :{key}, "
+                expression_attribute_values[f":{key}"] = value
 
+        # Eliminar la última coma y espacio
         update_expression = update_expression.rstrip(", ")
 
+        # Realizar la actualización
         t_rockies.update_item(
             Key={
                 'tenant_id': tenant_id,
@@ -41,13 +111,32 @@ def lambda_handler(event, context):
             ExpressionAttributeValues=expression_attribute_values
         )
 
+        # Obtener los datos completos del rockie actualizado
+        updated_rockie_response = t_rockies.get_item(
+            Key={
+                'tenant_id': tenant_id,
+                'student_id': student_id
+            }
+        )
+
+        if 'Item' not in updated_rockie_response:
+            return {
+                'statusCode': 500,
+                'body': {'error': 'Error al obtener los datos actualizados del rockie'}
+            }
+
+        # Convertir los Decimals a tipos serializables
+        rockie_data = convert_decimal(updated_rockie_response['Item'])
+
+        # Devolver los datos actualizados
         return {
             'statusCode': 200,
-            'body': {'message': 'Rockie updated successfully'}
+            'body': rockie_data
         }
 
     except Exception as e:
+        logger.error(f"Error al actualizar los datos del rockie: {str(e)}")
         return {
             'statusCode': 500,
-            'body': {'error': str(e)}
+            'body': {'error': f"Error interno del servidor: {str(e)}"}
         }
