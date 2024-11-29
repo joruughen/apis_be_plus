@@ -1,42 +1,10 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.handler = void 0;
-const AWS = __importStar(require("aws-sdk"));
+const client_dynamodb_1 = require("@aws-sdk/client-dynamodb"); // Importar DynamoDBClient y GetItemCommand
 const validateToken_1 = require("../utils/validateToken"); // Asegúrate de que la ruta sea correcta
-const dynamoDb = new AWS.DynamoDB.DocumentClient();
+// Crear una instancia del cliente de DynamoDB v3
+const dynamoDbClient = new client_dynamodb_1.DynamoDBClient({ region: 'us-east-1' }); // Asegúrate de usar la región correcta
 const tableName = process.env.TABLE_NAME;
 const handler = async (event) => {
     try {
@@ -59,16 +27,17 @@ const handler = async (event) => {
                 body: JSON.stringify({ message: 'Falta el campo rockie_id' }),
             };
         }
-        // Obtener los detalles del Rockie desde la tabla de DynamoDB
-        const getRockieResponse = await dynamoDb
-            .get({
+        // Definir los parámetros de la consulta para obtener el Rockie desde DynamoDB
+        const params = {
             TableName: tableName,
             Key: {
-                tenant_id,
-                rockie_id: body.rockie_id, // Usamos `rockie_id` como clave primaria o secundaria
+                tenant_id: { S: tenant_id }, // DynamoDB usa tipos como `S` para String
+                rockie_id: { S: body.rockie_id }, // Asegúrate de que rockie_id sea del tipo correcto
             },
-        })
-            .promise();
+        };
+        // Ejecutar el comando GetItemCommand con el cliente de DynamoDB
+        const command = new client_dynamodb_1.GetItemCommand(params);
+        const getRockieResponse = await dynamoDbClient.send(command);
         // Verificar si el Rockie existe en la tabla
         if (!getRockieResponse.Item) {
             return {

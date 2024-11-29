@@ -1,42 +1,20 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.validateToken = void 0;
-const AWS = __importStar(require("aws-sdk"));
-const lambda = new AWS.Lambda();
-const logger = require('lambda-log');
+const client_lambda_1 = require("@aws-sdk/client-lambda"); // AWS SDK v3 para invocar Lambda
+const winston_1 = require("winston"); // Logger winston
+// Crear una instancia del cliente Lambda con AWS SDK v3
+const lambda = new client_lambda_1.LambdaClient({ region: 'us-east-1' }); // Asegúrate de usar la región correcta
+// Crear el logger de winston
+const logger = (0, winston_1.createLogger)({
+    level: 'info',
+    format: winston_1.format.combine(winston_1.format.colorize(), winston_1.format.timestamp(), winston_1.format.printf(({ timestamp, level, message }) => {
+        return `${timestamp} [${level}]: ${message}`;
+    })),
+    transports: [
+        new winston_1.transports.Console(), // Usar consola para los logs
+    ],
+});
 // Función que valida el token
 const validateToken = async (token) => {
     try {
@@ -45,33 +23,34 @@ const validateToken = async (token) => {
         if (!validateFunctionName) {
             throw new Error('Error interno del servidor: falta configuración de la función de validación');
         }
-        // Invocar la función Lambda ValidateAccessToken para validar el token
-        const payload = {
-            token,
-        };
-        const invokeResponse = await lambda
-            .invoke({
+        // Crear el payload para enviar a la función Lambda
+        const payload = { token };
+        // Crear el comando para invocar la función Lambda
+        const command = new client_lambda_1.InvokeCommand({
             FunctionName: validateFunctionName,
-            InvocationType: 'RequestResponse',
-            Payload: JSON.stringify(payload),
-        })
-            .promise();
+            InvocationType: 'RequestResponse', // 'RequestResponse' es para esperar la respuesta
+            Payload: Buffer.from(JSON.stringify(payload)), // Convertir el payload en un Buffer
+        });
+        // Invocar la función Lambda usando AWS SDK v3
+        const invokeResponse = await lambda.send(command);
         // Leer y cargar la respuesta de la invocación
-        const responsePayload = JSON.parse(invokeResponse.Payload);
+        const responsePayload = JSON.parse(new TextDecoder().decode(invokeResponse.Payload));
+        // Log de la respuesta
         logger.info('Response from ValidateAccessToken:', responsePayload);
         // Verificar si el token es válido
         if (responsePayload.statusCode === 403) {
             throw new Error('Acceso No Autorizado');
         }
-        // Devuelve tenant_id y student_id
+        // Devolver tenant_id y student_id
         return {
             tenant_id: responsePayload.tenant_id,
             student_id: responsePayload.student_id,
         };
     }
     catch (error) {
+        // Log del error
         logger.error('Error en la validación del token:', error);
-        throw error; // Lanzamos el error para que el handler lo maneje
+        throw error; // Lanzar error para que el handler lo maneje
     }
 };
 exports.validateToken = validateToken;
