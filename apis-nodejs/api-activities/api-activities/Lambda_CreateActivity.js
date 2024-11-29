@@ -1,22 +1,19 @@
-const AWS = require('aws-sdk');
+const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
+const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+const { DynamoDBDocumentClient, GetCommand, PutCommand } = require('@aws-sdk/lib-dynamodb');
 const moment = require('moment');
-const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
-const {
-  DynamoDBDocumentClient,
-  GetCommand,
-  PutCommand,
-} = require("@aws-sdk/lib-dynamodb");
 
-const lambda = new AWS.Lambda();
-const dynamodb = new AWS.DynamoDB.DocumentClient();
-const client = new DynamoDBClient();
-const docClient = DynamoDBDocumentClient.from(client);
+// Crear clientes para DynamoDB y Lambda usando la versión modular
+const lambdaClient = new LambdaClient({});
+const dynamoClient = new DynamoDBClient({});
+const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
 const ACTIVITIES_TABLE = `${process.env.STAGE}_t_activities`;
 const TOKENS_TABLE = `${process.env.STAGE}_t_access_tokens`;
 
 exports.handler = async (event, context) => {
   try {
+    // Obtener el token de autorización desde los headers
     const token = event.headers['Authorization'];
     if (!token) {
       return {
@@ -25,7 +22,7 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Validate the token using the ValidateAccessToken Lambda function
+    // Validar el token usando la función Lambda ValidateAccessToken
     const validateFunctionName = process.env.VALIDATE_FUNCTION_NAME;
     if (!validateFunctionName) {
       return {
@@ -34,13 +31,13 @@ exports.handler = async (event, context) => {
       };
     }
 
-    const validateResponse = await lambda.invoke({
+    const validateResponse = await lambdaClient.send(new InvokeCommand({
       FunctionName: validateFunctionName,
       InvocationType: 'RequestResponse',
       Payload: JSON.stringify({ token })
-    }).promise();
+    }));
 
-    const validatePayload = JSON.parse(validateResponse.Payload);
+    const validatePayload = JSON.parse(Buffer.from(validateResponse.Payload).toString());
     if (validatePayload.statusCode === 403) {
       return {
         statusCode: 403,
@@ -48,11 +45,11 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Retrieve tenant_id and student_id from token
-    const tokenItem = await dynamodb.get({
+    // Recuperar tenant_id y student_id desde el token
+    const tokenItem = await docClient.send(new GetCommand({
       TableName: TOKENS_TABLE,
       Key: { token }
-    }).promise();
+    }));
 
     if (!tokenItem.Item) {
       return {
@@ -71,7 +68,7 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Validate the body data
+    // Validar los datos del body
     const body = JSON.parse(event.body || '{}');
     const { activity_id, activitie_type, time } = body;
 
@@ -89,7 +86,7 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Create activity object
+    // Crear objeto de la actividad
     const creationDate = moment().format('YYYY-MM-DD HH:mm:ss');
 
     const activityData = {
@@ -105,11 +102,11 @@ exports.handler = async (event, context) => {
       activity_data: activityData
     };
 
-    // Check if the activity already exists for this student_id and tenant_id
-    const existingActivity = await dynamodb.get({
+    // Verificar si la actividad ya existe para este student_id y tenant_id
+    const existingActivity = await docClient.send(new GetCommand({
       TableName: ACTIVITIES_TABLE,
       Key: { tenant_id: tenantId, activity_id: activity_id, student_id: studentId }
-    }).promise();
+    }));
 
     if (existingActivity.Item) {
       return {
@@ -118,11 +115,11 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Insert new activity into DynamoDB
-    await dynamodb.put({
+    // Insertar la nueva actividad en DynamoDB
+    await docClient.send(new PutCommand({
       TableName: ACTIVITIES_TABLE,
       Item: newActivityItem
-    }).promise();
+    }));
 
     return {
       statusCode: 200,
