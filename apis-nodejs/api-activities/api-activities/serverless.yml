@@ -41,6 +41,9 @@ functions:
                   },
                   "body": $input.body
                 }
+          response:
+            headers:
+              Content-Type: "'application/json'"  # Garantizar que la respuesta sea de tipo JSON
 
 
 custom:

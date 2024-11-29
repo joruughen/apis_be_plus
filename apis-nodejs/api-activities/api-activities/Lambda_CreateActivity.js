@@ -132,7 +132,7 @@ exports.handler = async (event, context) => {
     console.error('Error occurred:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: error.message })  // Devolver objeto directamente
+      body: {error: error.message }  // Devolver objeto directamente
     };
   }
 };
