@@ -1,7 +1,8 @@
+const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, GetCommand, DeleteCommand } = require('@aws-sdk/lib-dynamodb');
-const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
 
+// Crear clientes para DynamoDB y Lambda usando la versión modular
 const lambdaClient = new LambdaClient({});
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
@@ -20,8 +21,15 @@ exports.handler = async (event, context) => {
             };
         }
 
-        // Validar el token
+        // Validar el token usando la función Lambda ValidateAccessToken
         const validateFunctionName = process.env.VALIDATE_FUNCTION_NAME;
+        if (!validateFunctionName) {
+            return {
+                statusCode: 500,
+                body: { error: 'ValidateAccessToken function not configured' }
+            };
+        }
+
         const validateResponse = await lambdaClient.send(new InvokeCommand({
             FunctionName: validateFunctionName,
             InvocationType: 'RequestResponse',
@@ -36,7 +44,7 @@ exports.handler = async (event, context) => {
             };
         }
 
-        // Recuperar tenant_id y student_id del token
+        // Recuperar tenant_id y student_id desde el token
         const tokenItem = await docClient.send(new GetCommand({
             TableName: TOKENS_TABLE,
             Key: { token }
@@ -59,43 +67,45 @@ exports.handler = async (event, context) => {
             };
         }
 
-        // Obtener el activity_id desde los parámetros del path
-        const activity_id = event.pathParameters.activity_id;
+        // Validar los datos del body
+        const body = event.body || {};  // Asumimos que el body ya está parseado en el yml
+        const { activity_id } = body;
 
         if (!activity_id) {
             return {
                 statusCode: 400,
-                body: { error: 'Missing activity_id in path parameters' }
+                body: { error: 'Missing activity_id in request body' }
             };
         }
 
-        // Buscar la actividad en la base de datos
-        const activity = await docClient.send(new GetCommand({
+        // Verificar si la actividad existe para este tenant_id y student_id
+        const existingActivity = await docClient.send(new GetCommand({
             TableName: ACTIVITIES_TABLE,
-            Key: { tenant_id: tenantId, activity_id }
+            Key: { tenant_id: tenantId, activity_id: activity_id }
         }));
 
-        if (!activity.Item) {
+        if (!existingActivity.Item) {
             return {
                 statusCode: 404,
-                body: { error: 'Activity not found' }
+                body: { error: 'Activity not found for this tenant_id and activity_id' }
             };
         }
 
-        // Verificar que el student_id de la actividad coincida con el del token
-        if (activity.Item.student_id !== studentId) {
+        // Verificar que el student_id en la actividad coincide con el student_id del token
+        if (existingActivity.Item.student_id !== studentId) {
             return {
                 statusCode: 403,
-                body: { error: 'Activity student_id does not match token student_id' }
+                body: { error: 'You are not authorized to delete this activity' }
             };
         }
 
-        // Eliminar la actividad
+        // Eliminar la actividad de DynamoDB
         await docClient.send(new DeleteCommand({
             TableName: ACTIVITIES_TABLE,
-            Key: { tenant_id: tenantId, activity_id }
+            Key: { tenant_id: tenantId, activity_id: activity_id }
         }));
 
+        // Responder con éxito
         return {
             statusCode: 200,
             body: { message: 'Activity deleted successfully' }
