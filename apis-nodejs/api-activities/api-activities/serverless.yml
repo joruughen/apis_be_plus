@@ -12,6 +12,9 @@ provider:
 
 package:
   individually: true  # Permite empaquetar las funciones individualmente
+  include:
+    - node_modules/**  # Asegúrate de incluir node_modules
+    - Lambda_CreateActivity.js  # Asegúrate de incluir tu código también
 
 functions:
   Lambda_CreateActivity:
@@ -37,6 +40,7 @@ functions:
                   },
                   "body": $input.body
                 }
+
 
 custom:
   activitiesTable: ${self:provider.stage}_t_activities  # La tabla de actividades cambia según el stage
