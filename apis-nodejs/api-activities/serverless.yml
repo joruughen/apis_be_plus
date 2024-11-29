@@ -1,5 +1,5 @@
 org: jorgemelgarejo
-service: api-students
+service: api-rockies  # Cambié el nombre del servicio a api-rockies
 
 provider:
   name: aws
@@ -11,12 +11,12 @@ provider:
 package:
   individually: true
   include:
-    - dist/apis/**
-    - dist/utils/**  # Aseguramos que la carpeta dist/utils también se incluya
+    - dist/apis/**  # Incluir todos los archivos dentro de dist/apis/
+    - dist/utils/**  # Incluir todos los archivos dentro de dist/utils/
 
 functions:
-  CreateStudent:
-    handler: dist/apis/CreateStudent.lambda_handler
+  CreateRockie:
+    handler: dist/apis/CreateRockie.lambda_handler  # Cambié a CreateRockie
     memorySize: 512
     timeout: 30
     environment:
@@ -24,7 +24,7 @@ functions:
       STAGE: ${self:provider.stage}
     events:
       - http:
-          path: students
+          path: rockies
           method: post
           integration: lambda
           request:
@@ -39,8 +39,8 @@ functions:
                   "body": $input.body
                 }
 
-  GetStudent:
-    handler: dist/apis/GetStudent.lambda_handler
+  GetRockie:
+    handler: dist/apis/GetRockie.lambda_handler  # Cambié a GetRockie
     memorySize: 512
     timeout: 30
     environment:
@@ -48,7 +48,7 @@ functions:
       STAGE: ${self:provider.stage}
     events:
       - http:
-          path: students
+          path: rockies
           method: get
           integration: lambda
           request:
@@ -62,8 +62,8 @@ functions:
                   }
                 }
 
-  UpdateStudent:
-    handler: dist/apis/UpdateStudent.lambda_handler
+  UpdateRockie:
+    handler: dist/apis/UpdateRockie.lambda_handler  # Cambié a UpdateRockie
     memorySize: 512
     timeout: 30
     environment:
@@ -71,7 +71,7 @@ functions:
       STAGE: ${self:provider.stage}
     events:
       - http:
-          path: students
+          path: rockies
           method: put
           integration: lambda
           request:
@@ -86,8 +86,8 @@ functions:
                   "body": $input.body
                 }
 
-  DeleteStudent:
-    handler: dist/apis/DeleteStudent.lambda_handler
+  DeleteRockie:
+    handler: dist/apis/DeleteRockie.lambda_handler  # Cambié a DeleteRockie
     memorySize: 512
     timeout: 30
     environment:
@@ -95,7 +95,7 @@ functions:
       STAGE: ${self:provider.stage}
     events:
       - http:
-          path: students
+          path: rockies
           method: delete
           integration: lambda
           request:
