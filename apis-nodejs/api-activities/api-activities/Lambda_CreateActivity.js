@@ -38,7 +38,7 @@ exports.handler = async (event, context) => {
       Payload: JSON.stringify({ token })
     }));
 
-    // Parsear la respuesta de la función ValidateAccessToken
+    // Parsear la respuesta de la función ValidateAccessToken y manejar errores
     const validatePayload = JSON.parse(Buffer.from(validateResponse.Payload).toString());
     if (validatePayload.statusCode === 403) {
       return {
@@ -71,7 +71,16 @@ exports.handler = async (event, context) => {
     }
 
     // Validar los datos del body
-    const body = JSON.parse(event.body || '{}');
+    let body;
+    try {
+      body = JSON.parse(event.body || '{}');
+    } catch (err) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Invalid JSON format in request body' })
+      };
+    }
+
     const { activity_id, activitie_type, time } = body;
 
     if (!activity_id) {
