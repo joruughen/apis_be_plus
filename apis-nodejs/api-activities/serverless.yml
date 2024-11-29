@@ -1,12 +1,12 @@
 org: jorgemelgarejo
-service: api-rockies  # Cambié el nombre del servicio a api-rockies
+service: api-rockies  # Nombre del servicio
 
 provider:
   name: aws
   runtime: nodejs18.x  # Usamos Node.js
   region: us-east-1
   role: arn:aws:iam::232690452415:role/LabRole
-  stage: ${opt:stage, 'dev'}
+  stage: ${opt:stage, 'dev'}  # Utilizamos 'dev' como el stage por defecto
 
 package:
   individually: true
@@ -16,7 +16,7 @@ package:
 
 functions:
   CreateRockie:
-    handler: dist/apis/CreateRockie.lambda_handler  # Cambié a CreateRockie
+    handler: dist/apis/createRockie.handler  # Correcta ruta al archivo compilado en dist/apis/
     memorySize: 512
     timeout: 30
     environment:
@@ -40,7 +40,7 @@ functions:
                 }
 
   GetRockie:
-    handler: dist/apis/GetRockie.lambda_handler  # Cambié a GetRockie
+    handler: dist/apis/getRockie.handler  # Correcta ruta al archivo getRockie.js en dist/apis/
     memorySize: 512
     timeout: 30
     environment:
@@ -63,7 +63,7 @@ functions:
                 }
 
   UpdateRockie:
-    handler: dist/apis/UpdateRockie.lambda_handler  # Cambié a UpdateRockie
+    handler: dist/apis/updateRockie.handler  # Correcta ruta al archivo updateRockie.js en dist/apis/
     memorySize: 512
     timeout: 30
     environment:
@@ -87,7 +87,7 @@ functions:
                 }
 
   DeleteRockie:
-    handler: dist/apis/DeleteRockie.lambda_handler  # Cambié a DeleteRockie
+    handler: dist/apis/deleteRockie.handler  # Correcta ruta al archivo deleteRockie.js en dist/apis/
     memorySize: 512
     timeout: 30
     environment:
@@ -110,4 +110,4 @@ functions:
                 }
 
 custom:
-  validateTokenFunction: api-security-${self:provider.stage}-ValidateAccessToken
+  validateTokenFunction: api-security-${self:provider.stage}-ValidateAccessToken  # Función para validar el token de acceso
