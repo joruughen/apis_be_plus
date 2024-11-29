@@ -1,65 +1,106 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, DeleteCommand, GetCommand } = require('@aws-sdk/lib-dynamodb');
+const { DynamoDBDocumentClient, GetCommand, DeleteCommand } = require('@aws-sdk/lib-dynamodb');
+const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
 
+const lambdaClient = new LambdaClient({});
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
-// Obtener la tabla de actividades desde las variables de entorno
 const ACTIVITIES_TABLE = `${process.env.STAGE}_t_activities`;
+const TOKENS_TABLE = `${process.env.STAGE}_t_access_tokens`;
 
-exports.handler = async (event) => {
+exports.handler = async (event, context) => {
     try {
-        // Obtener el body de la solicitud (no parseado)
-        const body = event.body || '';
-
-        // Extraer el tenant_id y activity_id del cuerpo
-        const { tenant_id, activity_id } = body;  // Esperamos tenant_id y activity_id en el cuerpo
-
-        // Imprimir los valores recibidos en los logs de CloudWatch
-        console.log(`Received tenant_id: ${tenant_id}, activity_id for delete: ${activity_id}`);
-
-        // Verificar si el activity_id o tenant_id están presentes
-        if (!tenant_id || !activity_id) {
-            return {
-                statusCode: 400,
-                body: JSON.stringify({ error: 'tenant_id and activity_id are required in the body' })
-            };
-        }
-
-        // Validar el token de autorización
+        // Obtener el token de autorización desde los headers
         const token = event.headers['Authorization'];
         if (!token) {
             return {
                 statusCode: 400,
-                body: JSON.stringify({ error: 'Authorization token is missing' })
+                body: JSON.stringify({ error: 'Missing Authorization token' })
             };
         }
 
-        // Aquí deberías agregar la lógica para validar el token usando otro servicio Lambda o validación
-        // Por ahora asumimos que el token es válido
-
-        // Verificar si la actividad existe en la base de datos
-        const existingActivity = await docClient.send(new GetCommand({
-            TableName: ACTIVITIES_TABLE,
-            Key: { tenant_id, activity_id }
+        // Validar el token
+        const validateFunctionName = process.env.VALIDATE_FUNCTION_NAME;
+        const validateResponse = await lambdaClient.send(new InvokeCommand({
+            FunctionName: validateFunctionName,
+            InvocationType: 'RequestResponse',
+            Payload: JSON.stringify({ token })
         }));
 
-        if (!existingActivity.Item) {
+        const validatePayload = JSON.parse(Buffer.from(validateResponse.Payload).toString());
+        if (validatePayload.statusCode === 403) {
             return {
-                statusCode: 404,
-                body: JSON.stringify({ error: `Activity with tenant_id ${tenant_id} and activity_id ${activity_id} not found` })
+                statusCode: 403,
+                body: JSON.stringify({ error: validatePayload.body || 'Unauthorized Access' })
             };
         }
 
-        // Eliminar la actividad de la base de datos
+        // Recuperar tenant_id y student_id del token
+        const tokenItem = await docClient.send(new GetCommand({
+            TableName: TOKENS_TABLE,
+            Key: { token }
+        }));
+
+        if (!tokenItem.Item) {
+            return {
+                statusCode: 500,
+                body: JSON.stringify({ error: 'Failed to retrieve tenant_id and student_id from token' })
+            };
+        }
+
+        const tenantId = tokenItem.Item.tenant_id;
+        const studentId = tokenItem.Item.student_id;
+
+        if (!tenantId || !studentId) {
+            return {
+                statusCode: 500,
+                body: JSON.stringify({ error: 'Missing tenant_id or student_id in token' })
+            };
+        }
+
+        // Obtener el activity_id desde el body
+        const { activity_id } = JSON.parse(event.body);
+
+        if (!activity_id) {
+            return {
+                statusCode: 400,
+                body: JSON.stringify({ error: 'Missing activity_id in request body' })
+            };
+        }
+
+        // Buscar la actividad en la base de datos
+        const activity = await docClient.send(new GetCommand({
+            TableName: ACTIVITIES_TABLE,
+            Key: { tenant_id: tenantId, activity_id }
+        }));
+
+        if (!activity.Item) {
+            return {
+                statusCode: 404,
+                body: JSON.stringify({ error: 'Activity not found' })
+            };
+        }
+
+        // Verificar que el student_id de la actividad coincida con el del token
+        if (activity.Item.student_id !== studentId) {
+            return {
+                statusCode: 403,
+                body: JSON.stringify({ error: 'Activity student_id does not match token student_id' })
+            };
+        }
+
+        // Eliminar la actividad
         await docClient.send(new DeleteCommand({
             TableName: ACTIVITIES_TABLE,
-            Key: { tenant_id, activity_id }
+            Key: { tenant_id: tenantId, activity_id }
         }));
 
         return {
             statusCode: 200,
-            body: JSON.stringify({ message: `Activity with tenant_id ${tenant_id} and activity_id ${activity_id} deleted successfully` })
+            body: JSON.stringify({
+                message: 'Activity deleted successfully'
+            })
         };
 
     } catch (error) {

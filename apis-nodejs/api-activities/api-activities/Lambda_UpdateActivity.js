@@ -1,76 +1,120 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, GetCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
+const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
 
+const lambdaClient = new LambdaClient({});
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
-// Obtener la tabla de actividades desde las variables de entorno
 const ACTIVITIES_TABLE = `${process.env.STAGE}_t_activities`;
+const TOKENS_TABLE = `${process.env.STAGE}_t_access_tokens`;
 
-exports.handler = async (event) => {
+exports.handler = async (event, context) => {
     try {
-        // Obtener el body de la solicitud (no parseado)
-        const body = event.body || '';
-
-        // Extraer el tenant_id y activity_id del cuerpo
-        const { tenant_id, activity_id, activity_data, activitie_type } = body;
-
-        // Imprimir los valores recibidos en los logs de CloudWatch
-        console.log(`Received tenant_id: ${tenant_id}, activity_id for update: ${activity_id}`);
-
-        // Verificar si el tenant_id o activity_id están presentes
-        if (!tenant_id || !activity_id) {
-            return {
-                statusCode: 400,
-                body: JSON.stringify({ error: 'tenant_id and activity_id are required in the body' })
-            };
-        }
-
-        // Validar el token de autorización
+        // Obtener el token de autorización desde los headers
         const token = event.headers['Authorization'];
         if (!token) {
             return {
                 statusCode: 400,
-                body: JSON.stringify({ error: 'Authorization token is missing' })
+                body: JSON.stringify({ error: 'Missing Authorization token' })
             };
         }
 
-        // Aquí deberías agregar la lógica para validar el token usando otro servicio Lambda o validación
-        // Por ahora asumimos que el token es válido
-
-        // Verificar si la actividad existe en la base de datos
-        const existingActivity = await docClient.send(new GetCommand({
-            TableName: ACTIVITIES_TABLE,
-            Key: { tenant_id, activity_id }
+        // Validar el token
+        const validateFunctionName = process.env.VALIDATE_FUNCTION_NAME;
+        const validateResponse = await lambdaClient.send(new InvokeCommand({
+            FunctionName: validateFunctionName,
+            InvocationType: 'RequestResponse',
+            Payload: JSON.stringify({ token })
         }));
 
-        if (!existingActivity.Item) {
+        const validatePayload = JSON.parse(Buffer.from(validateResponse.Payload).toString());
+        if (validatePayload.statusCode === 403) {
             return {
-                statusCode: 404,
-                body: JSON.stringify({ error: `Activity with tenant_id ${tenant_id} and activity_id ${activity_id} not found` })
+                statusCode: 403,
+                body: JSON.stringify({ error: validatePayload.body || 'Unauthorized Access' })
             };
         }
 
-        // Actualizar la actividad en la base de datos
-        const updateParams = {
+        // Recuperar tenant_id y student_id del token
+        const tokenItem = await docClient.send(new GetCommand({
+            TableName: TOKENS_TABLE,
+            Key: { token }
+        }));
+
+        if (!tokenItem.Item) {
+            return {
+                statusCode: 500,
+                body: JSON.stringify({ error: 'Failed to retrieve tenant_id and student_id from token' })
+            };
+        }
+
+        const tenantId = tokenItem.Item.tenant_id;
+        const studentId = tokenItem.Item.student_id;
+
+        if (!tenantId || !studentId) {
+            return {
+                statusCode: 500,
+                body: JSON.stringify({ error: 'Missing tenant_id or student_id in token' })
+            };
+        }
+
+        // Obtener el activity_id desde el body
+        const { activity_id, activity_type, activity_data } = JSON.parse(event.body);
+
+        if (!activity_id) {
+            return {
+                statusCode: 400,
+                body: JSON.stringify({ error: 'Missing activity_id in request body' })
+            };
+        }
+
+        // Buscar la actividad en la base de datos
+        const activity = await docClient.send(new GetCommand({
             TableName: ACTIVITIES_TABLE,
-            Key: { tenant_id, activity_id },
-            UpdateExpression: "set activitie_type = :activitie_type, activity_data = :activity_data",
-            ExpressionAttributeValues: {
-                ":activitie_type": activitie_type || existingActivity.Item.activitie_type,
-                ":activity_data": activity_data || existingActivity.Item.activity_data
-            },
-            ReturnValues: "UPDATED_NEW"
+            Key: { tenant_id: tenantId, activity_id }
+        }));
+
+        if (!activity.Item) {
+            return {
+                statusCode: 404,
+                body: JSON.stringify({ error: 'Activity not found' })
+            };
+        }
+
+        // Verificar que el student_id de la actividad coincida con el del token
+        if (activity.Item.student_id !== studentId) {
+            return {
+                statusCode: 403,
+                body: JSON.stringify({ error: 'Activity student_id does not match token student_id' })
+            };
+        }
+
+        // Actualizar los datos de la actividad
+        const updatedActivity = {
+            ...activity.Item,
+            activity_type: activity_type || activity.Item.activity_type,
+            activity_data: activity_data || activity.Item.activity_data,
         };
 
-        // Realizar la actualización
-        const updatedActivity = await docClient.send(new UpdateCommand(updateParams));
+        const updateParams = {
+            TableName: ACTIVITIES_TABLE,
+            Key: { tenant_id: tenantId, activity_id },
+            UpdateExpression: 'SET activity_type = :activity_type, activity_data = :activity_data',
+            ExpressionAttributeValues: {
+                ':activity_type': updatedActivity.activity_type,
+                ':activity_data': updatedActivity.activity_data
+            },
+            ReturnValues: 'ALL_NEW'
+        };
+
+        const updatedItem = await docClient.send(new UpdateCommand(updateParams));
 
         return {
             statusCode: 200,
             body: JSON.stringify({
-                message: `Activity with tenant_id ${tenant_id} and activity_id ${activity_id} updated successfully`,
-                updatedAttributes: updatedActivity.Attributes
+                message: 'Activity updated successfully',
+                activity: updatedItem.Attributes
             })
         };
 
