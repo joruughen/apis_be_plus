@@ -22,15 +22,8 @@ exports.handler = async (event, context) => {
             };
         }
 
-        // Validar el token usando la función Lambda ValidateAccessToken
+        // Validar el token utilizando la función Lambda ValidateAccessToken
         const validateFunctionName = process.env.VALIDATE_FUNCTION_NAME;
-        if (!validateFunctionName) {
-            return {
-                statusCode: 500,
-                body: JSON.stringify({ error: 'ValidateAccessToken function not configured' })
-            };
-        }
-
         const validateResponse = await lambdaClient.send(new InvokeCommand({
             FunctionName: validateFunctionName,
             InvocationType: 'RequestResponse',
@@ -41,11 +34,11 @@ exports.handler = async (event, context) => {
         if (validatePayload.statusCode === 403) {
             return {
                 statusCode: 403,
-                body: JSON.stringify({ error: validatePayload.body || 'Unauthorized Access' })
+                body: JSON.stringify({ error: 'Unauthorized Access' })
             };
         }
 
-        // Recuperar tenant_id y student_id desde el token
+        // Obtener el student_id desde el token
         const tokenItem = await docClient.send(new GetCommand({
             TableName: TOKENS_TABLE,
             Key: { token }
@@ -58,74 +51,33 @@ exports.handler = async (event, context) => {
             };
         }
 
-        const tenantId = tokenItem.Item.tenant_id;
         const studentId = tokenItem.Item.student_id;
+        const activityId = event.pathParameters.activity_id;  // Obtenemos el activity_id de la URL
 
-        if (!tenantId || !studentId) {
-            return {
-                statusCode: 500,
-                body: JSON.stringify({ error: 'Missing tenant_id or student_id in token' })
-            };
-        }
-
-        // Obtener el `activity_id` de los parámetros de la ruta (URL)
-        const activityId = event.pathParameters.activity_id; // Aquí se obtiene del path
-
-        if (!activityId) {
-            return {
-                statusCode: 400,
-                body: JSON.stringify({ error: 'Missing activity_id in path parameters' })
-            };
-        }
-
-        // Obtener los datos del body
-        const body = JSON.parse(event.body || '{}');
-        const { activitie_type, activity_data } = body;
-
-        if (!activitie_type) {
-            return {
-                statusCode: 400,
-                body: JSON.stringify({ error: 'Missing activitie_type in request body' })
-            };
-        }
-
-        // Verificar si la actividad existe
-        const activityParams = {
+        // Validar que la actividad existe
+        const activityResponse = await docClient.send(new GetCommand({
             TableName: ACTIVITIES_TABLE,
-            Key: { tenant_id: tenantId, activity_id: activityId, student_id: studentId }
-        };
+            Key: { student_id: studentId, activity_id: activityId }
+        }));
 
-        const existingActivity = await docClient.send(new GetCommand(activityParams));
-
-        if (!existingActivity.Item) {
+        if (!activityResponse.Item) {
             return {
                 statusCode: 404,
-                body: JSON.stringify({ error: 'Activity not found' })
+                body: JSON.stringify({ error: 'Activity not found for this student_id and activity_id' })
             };
         }
 
-        // Verificar si el student_id de la actividad coincide con el del token
-        if (existingActivity.Item.student_id !== studentId) {
-            return {
-                statusCode: 403,
-                body: JSON.stringify({ error: 'Unauthorized: student_id does not match' })
-            };
-        }
-
-        // Actualizar los campos de la actividad (excepto `activity_id` que no debe ser modificado)
+        // Actualizar los datos de la actividad
+        const updateData = JSON.parse(event.body);  // Datos nuevos para actualizar
         const updateParams = {
             TableName: ACTIVITIES_TABLE,
-            Key: { tenant_id: tenantId, activity_id: activityId, student_id: studentId },
-            UpdateExpression: 'set activitie_type = :activitie_type, activity_data = :activity_data, #updatedAt = :updatedAt',
+            Key: { student_id: studentId, activity_id: activityId },
+            UpdateExpression: "set activitie_type = :activitie_type, activity_data = :activity_data",
             ExpressionAttributeValues: {
-                ':activitie_type': activitie_type,
-                ':activity_data': activity_data || existingActivity.Item.activity_data, // Usar valores nuevos si están presentes, o los existentes
-                ':updatedAt': moment().format('YYYY-MM-DD HH:mm:ss')
+                ":activitie_type": updateData.activitie_type || activityResponse.Item.activitie_type,
+                ":activity_data": updateData.activity_data || activityResponse.Item.activity_data
             },
-            ExpressionAttributeNames: {
-                '#updatedAt': 'updated_at' // Asegúrate de tener un campo `updated_at` para las actualizaciones
-            },
-            ReturnValues: 'ALL_NEW'
+            ReturnValues: "ALL_NEW"
         };
 
         const updatedActivity = await docClient.send(new UpdateCommand(updateParams));
@@ -134,7 +86,7 @@ exports.handler = async (event, context) => {
             statusCode: 200,
             body: JSON.stringify({
                 message: 'Activity updated successfully',
-                activity: updatedActivity.Attributes
+                updatedActivity: updatedActivity.Attributes
             })
         };
 

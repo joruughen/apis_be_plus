@@ -12,15 +12,6 @@ const TOKENS_TABLE = `${process.env.STAGE}_t_access_tokens`;
 
 exports.handler = async (event, context) => {
     try {
-        // Obtener el activity_id de la URL
-        const activityId = event.pathParameters.activity_id;
-        if (!activityId) {
-            return {
-                statusCode: 400,
-                body: JSON.stringify({ error: 'Missing activity_id in the request path' })
-            };
-        }
-
         // Obtener el token de autorización desde los headers
         const token = event.headers['Authorization'];
         if (!token) {
@@ -30,15 +21,8 @@ exports.handler = async (event, context) => {
             };
         }
 
-        // Validar el token usando la función Lambda ValidateAccessToken
+        // Validar el token utilizando la función Lambda ValidateAccessToken
         const validateFunctionName = process.env.VALIDATE_FUNCTION_NAME;
-        if (!validateFunctionName) {
-            return {
-                statusCode: 500,
-                body: JSON.stringify({ error: 'ValidateAccessToken function not configured' })
-            };
-        }
-
         const validateResponse = await lambdaClient.send(new InvokeCommand({
             FunctionName: validateFunctionName,
             InvocationType: 'RequestResponse',
@@ -49,11 +33,11 @@ exports.handler = async (event, context) => {
         if (validatePayload.statusCode === 403) {
             return {
                 statusCode: 403,
-                body: JSON.stringify({ error: validatePayload.body || 'Unauthorized Access' })
+                body: JSON.stringify({ error: 'Unauthorized Access' })
             };
         }
 
-        // Recuperar tenant_id y student_id desde el token
+        // Obtener el student_id desde el token
         const tokenItem = await docClient.send(new GetCommand({
             TableName: TOKENS_TABLE,
             Key: { token }
@@ -66,33 +50,26 @@ exports.handler = async (event, context) => {
             };
         }
 
-        const tenantId = tokenItem.Item.tenant_id;
         const studentId = tokenItem.Item.student_id;
+        const activityId = event.pathParameters.activity_id;  // Obtenemos el activity_id de la URL
 
-        if (!tenantId || !studentId) {
-            return {
-                statusCode: 500,
-                body: JSON.stringify({ error: 'Missing tenant_id or student_id in token' })
-            };
-        }
-
-        // Verificar si la actividad existe para este student_id y tenant_id
-        const activity = await docClient.send(new GetCommand({
+        // Verificar que la actividad existe
+        const activityResponse = await docClient.send(new GetCommand({
             TableName: ACTIVITIES_TABLE,
-            Key: { tenant_id: tenantId, activity_id: activityId, student_id: studentId }
+            Key: { student_id: studentId, activity_id: activityId }
         }));
 
-        if (!activity.Item) {
+        if (!activityResponse.Item) {
             return {
                 statusCode: 404,
-                body: JSON.stringify({ error: 'Activity not found for this student_id and tenant_id' })
+                body: JSON.stringify({ error: 'Activity not found for this student_id and activity_id' })
             };
         }
 
         // Eliminar la actividad
         await docClient.send(new DeleteCommand({
             TableName: ACTIVITIES_TABLE,
-            Key: { tenant_id: tenantId, activity_id: activityId, student_id: studentId }
+            Key: { student_id: studentId, activity_id: activityId }
         }));
 
         return {
