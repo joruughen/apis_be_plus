@@ -67,22 +67,22 @@ exports.handler = async (event, context) => {
             };
         }
 
-        const { activity_id } = event.body;
+        // Obtener el `activity_id` de los parámetros de la URL
+        const activityId = event.pathParameters.activity_id;
 
-        if (!activity_id) {
+        if (!activityId) {
             return {
                 statusCode: 400,
-                body: { error: 'Missing activity_id in request body' }
+                body: { error: 'Missing activity_id in path parameters' }
             };
         }
 
-        // Obtener el item de la actividad
+        // Verificar si la actividad existe
         const activityParams = {
             TableName: ACTIVITIES_TABLE,
-            Key: { tenant_id: tenantId, activity_id: activity_id}
+            Key: { tenant_id: tenantId, activity_id: activityId, student_id: studentId }
         };
 
-        // Verificar si la actividad existe
         const existingActivity = await docClient.send(new GetCommand(activityParams));
 
         if (!existingActivity.Item) {
@@ -101,10 +101,12 @@ exports.handler = async (event, context) => {
         }
 
         // Eliminar la actividad
-        await docClient.send(new DeleteCommand({
+        const deleteParams = {
             TableName: ACTIVITIES_TABLE,
-            Key: activityParams.Key
-        }));
+            Key: { tenant_id: tenantId, activity_id: activityId}
+        };
+
+        await docClient.send(new DeleteCommand(deleteParams));
 
         return {
             statusCode: 200,
