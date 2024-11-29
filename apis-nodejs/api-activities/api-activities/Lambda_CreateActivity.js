@@ -2,7 +2,7 @@ const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, GetCommand, PutCommand } = require('@aws-sdk/lib-dynamodb');
 const moment = require('moment');
-const { v4: uuidv4 } = require('uuid');  // Usamos UUID para generar el ID de la actividad
+const { v4: uuidv4 } = require('uuid');
 
 // Crear clientes para DynamoDB y Lambda usando la versión modular
 const lambdaClient = new LambdaClient({});
@@ -19,7 +19,7 @@ exports.handler = async (event, context) => {
     if (!token) {
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: 'Missing Authorization token' })
+        body: { error: 'Missing Authorization token' }
       };
     }
 
@@ -28,7 +28,7 @@ exports.handler = async (event, context) => {
     if (!validateFunctionName) {
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: 'ValidateAccessToken function not configured' })
+        body: { error: 'ValidateAccessToken function not configured' }
       };
     }
 
@@ -42,7 +42,7 @@ exports.handler = async (event, context) => {
     if (validatePayload.statusCode === 403) {
       return {
         statusCode: 403,
-        body: JSON.stringify({ error: validatePayload.body || 'Unauthorized Access' })
+        body: { error: validatePayload.body || 'Unauthorized Access' }
       };
     }
 
@@ -55,7 +55,7 @@ exports.handler = async (event, context) => {
     if (!tokenItem.Item) {
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: 'Failed to retrieve tenant_id and student_id from token' })
+        body: { error: 'Failed to retrieve tenant_id and student_id from token' }
       };
     }
 
@@ -65,46 +65,59 @@ exports.handler = async (event, context) => {
     if (!tenantId || !studentId) {
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: 'Missing tenant_id or student_id in token' })
+        body: { error: 'Missing tenant_id or student_id in token' }
       };
     }
 
     // Validar los datos del body
-    const body = event.body; // No necesitamos parsear, ya lo hace el API Gateway
-    const { activitie_type, activity_data } = body;
+    const body = event.body || {};  // Asumimos que el body ya está parseado en el yml
+    const { activity_id, activitie_type } = body;
 
     if (!activitie_type) {
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: 'Missing activitie_type in request body' })
+        body: { error: 'Missing activity_type in request body' }
       };
     }
 
-    // Generar el ID de actividad con UUID
-    const activityId = uuidv4();  // Generación del activity_id
+    // Generar un UUID para el nuevo activity_id si no está presente
+    const newActivityId = activity_id || uuidv4();
 
     // Crear objeto de la actividad
     const creationDate = moment().format('YYYY-MM-DD HH:mm:ss');
 
+    // Si hay campos como "activity_data.algo" en el body, agregarlos dentro de activity_data
+    let activityData = {};
+
+    // Iterar sobre las claves del body para extraer datos de "activity_data"
+    Object.keys(body).forEach((key) => {
+      // Si el campo tiene el formato 'activity_data.xyz', extraer la parte después de 'activity_data.'
+      if (key.startsWith('activity_data.')) {
+        const subKey = key.replace('activity_data.', '');
+        activityData[subKey] = body[key];
+      }
+    });
+
+    // Crear el nuevo objeto de actividad
     const newActivityItem = {
       tenant_id: tenantId,
-      activity_id: activityId,
+      activity_id: newActivityId,
       student_id: studentId,
       activitie_type: activitie_type,
       creation_date: creationDate,
-      activity_data: activity_data || {}
+      activity_data: activityData // Aquí se agregan los campos "activity_data"
     };
 
     // Verificar si la actividad ya existe para este student_id y tenant_id
     const existingActivity = await docClient.send(new GetCommand({
       TableName: ACTIVITIES_TABLE,
-      Key: { tenant_id: tenantId, activity_id: activityId}
+      Key: { tenant_id: tenantId, activity_id: newActivityId}
     }));
 
     if (existingActivity.Item) {
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: 'Activity already exists for this student_id and tenant_id' })
+        body: { error: 'Activity already exists for this student_id and tenant_id' }
       };
     }
 
@@ -114,19 +127,20 @@ exports.handler = async (event, context) => {
       Item: newActivityItem
     }));
 
+    // Responder con un objeto JSON (sin stringify) para que API Gateway lo maneje adecuadamente
     return {
       statusCode: 200,
-      body: JSON.stringify({
+      body: {
         message: 'Activity created successfully',
         activity: newActivityItem
-      })
+      }
     };
 
   } catch (error) {
     console.error('Error occurred:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: error.message })
+      body: { error: error.message }
     };
   }
 };
