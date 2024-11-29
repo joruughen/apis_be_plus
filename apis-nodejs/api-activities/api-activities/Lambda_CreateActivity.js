@@ -11,7 +11,7 @@ const docClient = DynamoDBDocumentClient.from(dynamoClient);
 const ACTIVITIES_TABLE = `${process.env.STAGE}_t_activities`;
 const TOKENS_TABLE = `${process.env.STAGE}_t_access_tokens`;
 
-exports.handler = async (event, context) => {
+exports.handler = async (event) => {
   try {
     // Verificar si el cuerpo está presente
     if (!event.body) {
@@ -33,22 +33,8 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Verificar si el cuerpo tiene los campos necesarios
-    const { activity_id, activitie_type, time } = body;
-
-    if (!activity_id) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Missing activity_id in request body' })
-      };
-    }
-
-    if (!activitie_type) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Missing activity_type in request body' })
-      };
-    }
+    // Log para depuración
+    console.log('Parsed body:', body);
 
     // Obtener el token de autorización desde los headers
     const token = event.headers['Authorization'];
@@ -102,6 +88,23 @@ exports.handler = async (event, context) => {
       return {
         statusCode: 500,
         body: JSON.stringify({ error: 'Missing tenant_id or student_id in token' })
+      };
+    }
+
+    // Validar los datos del body
+    const { activity_id, activitie_type, time } = body;
+
+    if (!activity_id) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Missing activity_id in request body' })
+      };
+    }
+
+    if (!activitie_type) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Missing activity_type in request body' })
       };
     }
 
