@@ -2,7 +2,7 @@ const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, GetCommand, PutCommand } = require('@aws-sdk/lib-dynamodb');
 const moment = require('moment');
-const { v4: uuidv4 } = require('uuid'); // Importa la función v4 de uuid para generar UUIDs
+const { v4: uuidv4 } = require('uuid');
 
 // Crear clientes para DynamoDB y Lambda usando la versión modular
 const lambdaClient = new LambdaClient({});
@@ -70,39 +70,58 @@ exports.handler = async (event, context) => {
     }
 
     // Validar los datos del body
-    const body = event.body;
-    const { activitie_type, time } = body; // activity_id ahora será generado automáticamente
+    const body = JSON.parse(event.body || '{}');
+    const { activitie_type, ...otherData } = body;
 
     if (!activitie_type) {
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: 'Missing activity_type in request body' })
+        body: JSON.stringify({ error: 'Missing activitie_type in request body' })
       };
     }
 
-    // Generar un activity_id único utilizando UUID
-    const activity_id = uuidv4();  // Generación de UUID para el activity_id
-
-    // Crear objeto de la actividad
+    // Generar un nuevo activity_id
+    const activityId = uuidv4();
     const creationDate = moment().format('YYYY-MM-DD HH:mm:ss');
 
-    const activityData = {
-      time: time || 0
-    };
+    // Crear el objeto activity_data que contendrá todos los campos anidados
+    let activityData = {};
 
+    // Iterar sobre las claves del body para separar los campos anidados de los no anidados
+    for (const [key, value] of Object.entries(otherData)) {
+      if (key.includes('.')) {
+        // Si el nombre de la clave contiene un punto, lo tratamos como anidado
+        const keys = key.split('.');
+        let temp = activityData;
+
+        // Recorrer las claves anidadas
+        for (let i = 0; i < keys.length - 1; i++) {
+          if (!temp[keys[i]]) temp[keys[i]] = {}; // Crear objetos intermedios si no existen
+          temp = temp[keys[i]]; // Navegar al siguiente nivel
+        }
+
+        // Asignar el valor final al último nivel de la jerarquía
+        temp[keys[keys.length - 1]] = value;
+      } else {
+        // Si no es un campo anidado, lo guardamos directamente en el objeto principal
+        newActivityItem[key] = value;
+      }
+    }
+
+    // Crear el objeto de la actividad
     const newActivityItem = {
       tenant_id: tenantId,
-      activity_id: activity_id,
+      activity_id: activityId,
       student_id: studentId,
       activitie_type: activitie_type,
       creation_date: creationDate,
-      activity_data: activityData
+      activity_data: activityData, // Aquí guardamos los datos anidados
     };
 
     // Verificar si la actividad ya existe para este student_id y tenant_id
     const existingActivity = await docClient.send(new GetCommand({
       TableName: ACTIVITIES_TABLE,
-      Key: { tenant_id: tenantId, activity_id: activity_id}
+      Key: { tenant_id: tenantId, activity_id: activityId}
     }));
 
     if (existingActivity.Item) {
@@ -118,13 +137,12 @@ exports.handler = async (event, context) => {
       Item: newActivityItem
     }));
 
-    // Responder con toda la información de la actividad creada
     return {
       statusCode: 200,
-      body: {
+      body: JSON.stringify({
         message: 'Activity created successfully',
         activity: newActivityItem
-      } // Devuelve directamente un objeto, no como string JSON
+      })
     };
 
   } catch (error) {
