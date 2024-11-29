@@ -17,7 +17,7 @@ exports.handler = async (event, context) => {
         if (!token) {
             return {
                 statusCode: 400,
-                body: JSON.stringify({ error: 'Missing Authorization token' })
+                body: { error: 'Missing Authorization token' }
             };
         }
 
@@ -26,7 +26,7 @@ exports.handler = async (event, context) => {
         if (!validateFunctionName) {
             return {
                 statusCode: 500,
-                body: JSON.stringify({ error: 'ValidateAccessToken function not configured' })
+                body: { error: 'ValidateAccessToken function not configured' }
             };
         }
 
@@ -40,7 +40,7 @@ exports.handler = async (event, context) => {
         if (validatePayload.statusCode === 403) {
             return {
                 statusCode: 403,
-                body: JSON.stringify({ error: validatePayload.body || 'Unauthorized Access' })
+                body: { error: validatePayload.body || 'Unauthorized Access' }
             };
         }
 
@@ -53,7 +53,7 @@ exports.handler = async (event, context) => {
         if (!tokenItem.Item) {
             return {
                 statusCode: 500,
-                body: JSON.stringify({ error: 'Failed to retrieve tenant_id and student_id from token' })
+                body: { error: 'Failed to retrieve tenant_id and student_id from token' }
             };
         }
 
@@ -63,7 +63,7 @@ exports.handler = async (event, context) => {
         if (!tenantId || !studentId) {
             return {
                 statusCode: 500,
-                body: JSON.stringify({ error: 'Missing tenant_id or student_id in token' })
+                body: { error: 'Missing tenant_id or student_id in token' }
             };
         }
 
@@ -75,7 +75,7 @@ exports.handler = async (event, context) => {
         if (!activity_id) {
             return {
                 statusCode: 400,
-                body: JSON.stringify({ error: 'Missing activity_id in request body' })
+                body: { error: 'Missing activity_id in request body' }
             };
         }
 
@@ -88,7 +88,7 @@ exports.handler = async (event, context) => {
         if (!existingActivity.Item) {
             return {
                 statusCode: 404,
-                body: JSON.stringify({ error: 'Activity not found for this tenant_id and activity_id' })
+                body: { error: 'Activity not found for this tenant_id and activity_id' }
             };
         }
 
@@ -96,7 +96,7 @@ exports.handler = async (event, context) => {
         if (existingActivity.Item.student_id !== studentId) {
             return {
                 statusCode: 403,
-                body: JSON.stringify({ error: 'Student ID mismatch, cannot delete this activity' })
+                body: { error: 'Student ID mismatch, cannot delete this activity' }
             };
         }
 
@@ -109,17 +109,17 @@ exports.handler = async (event, context) => {
         // Responder con éxito
         return {
             statusCode: 200,
-            body: JSON.stringify({
+            body: {
                 message: 'Activity deleted successfully',
                 activity_id: activity_id
-            })
+            }
         };
 
     } catch (error) {
         console.error('Error occurred:', error);
         return {
             statusCode: 500,
-            body: JSON.stringify({ error: error.message })
+            body: { error: error.message }
         };
     }
 };
