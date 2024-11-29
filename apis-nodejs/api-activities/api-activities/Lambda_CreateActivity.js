@@ -71,7 +71,7 @@ exports.handler = async (event, context) => {
 
     // Validar los datos del body
     const body = event.body || {};  // Asumimos que el body ya está parseado en el yml
-    const { activity_id, activity_type } = body;
+    const { activity_id, activity_type, activity_data } = body;
 
     if (!activity_type) {
       return {
@@ -86,17 +86,8 @@ exports.handler = async (event, context) => {
     // Crear objeto de la actividad
     const creationDate = moment().format('YYYY-MM-DD HH:mm:ss');
 
-    // Si hay campos como "activity_data.algo" en el body, agregarlos dentro de activity_data
-    let activityData = {};
-
-    // Iterar sobre las claves del body para extraer datos de "activity_data"
-    Object.keys(body).forEach((key) => {
-      // Si el campo tiene el formato 'activity_data.xyz', extraer la parte después de 'activity_data.'
-      if (key.startsWith('activity_data.')) {
-        const subKey = key.replace('activity_data.', '');
-        activityData[subKey] = body[key];
-      }
-    });
+    // Si se proporcionó activity_data, usalo directamente
+    const activityData = activity_data || {};
 
     // Crear el nuevo objeto de actividad
     const newActivityItem = {
@@ -105,13 +96,13 @@ exports.handler = async (event, context) => {
       student_id: studentId,
       activity_type: activity_type,
       creation_date: creationDate,
-      activity_data: activityData // Aquí se agregan los campos "activity_data"
+      activity_data: activityData // Aquí se agrega el activity_data completo
     };
 
     // Verificar si la actividad ya existe para este student_id y tenant_id
     const existingActivity = await docClient.send(new GetCommand({
       TableName: ACTIVITIES_TABLE,
-      Key: { tenant_id: tenantId, activity_id: newActivityId}
+      Key: { tenant_id: tenantId, activity_id: newActivityId }
     }));
 
     if (existingActivity.Item) {
