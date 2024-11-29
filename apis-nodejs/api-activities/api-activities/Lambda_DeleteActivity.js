@@ -4,21 +4,21 @@ const { DynamoDBDocumentClient, DeleteCommand } = require('@aws-sdk/lib-dynamodb
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
-// Obtén la tabla de actividades desde las variables de entorno
+// Obtener la tabla de actividades desde las variables de entorno
 const ACTIVITIES_TABLE = `${process.env.STAGE}_t_activities`;
 
 exports.handler = async (event) => {
     try {
-        // Obtener el body de la solicitud
-        const body = event.body ? JSON.parse(event.body) : {};
+        // Obtener el body de la solicitud (no parseado)
+        const body = event.body || '';
 
-        // Obtener el activity_id del cuerpo
-        const activityId = body.activity_id;
+        // Extraer el activity_id del cuerpo (esperando que venga como un campo clave-valor en texto)
+        const activityId = body.activity_id || null;
 
         // Imprimir el activity_id en los logs de CloudWatch
         console.log(`Received activity_id for delete: ${activityId}`);
 
-        // Verificar si el activity_id existe en el cuerpo
+        // Verificar si el activity_id existe
         if (!activityId) {
             return {
                 statusCode: 400,
