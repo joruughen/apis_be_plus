@@ -57,7 +57,7 @@ functions:
       STAGE: ${self:provider.stage}
     events:
       - http:
-          path: activities/{activity_id}  # Define el parámetro en la URL
+          path: activities/  # Define el parámetro en la URL
           method: put
           integration: lambda
           request:
@@ -84,7 +84,7 @@ functions:
       STAGE: ${self:provider.stage}
     events:
       - http:
-          path: activities/{activity_id}  # Define el parámetro en la URL
+          path: activities/  # Define el parámetro en la URL
           method: delete
           integration: lambda
           request:

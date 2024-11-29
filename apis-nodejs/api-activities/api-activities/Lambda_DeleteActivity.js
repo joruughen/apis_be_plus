@@ -9,17 +9,20 @@ const ACTIVITIES_TABLE = `${process.env.STAGE}_t_activities`;
 
 exports.handler = async (event) => {
     try {
-        // Obtener el activity_id de los parámetros del path
-        const activityId = event.pathParameters ? event.pathParameters.activity_id : undefined;
+        // Obtener el body de la solicitud
+        const body = event.body ? JSON.parse(event.body) : {};
+
+        // Obtener el activity_id del cuerpo
+        const activityId = body.activity_id;
 
         // Imprimir el activity_id en los logs de CloudWatch
         console.log(`Received activity_id for delete: ${activityId}`);
 
-        // Verificar si el activity_id existe en la URL
+        // Verificar si el activity_id existe en el cuerpo
         if (!activityId) {
             return {
                 statusCode: 400,
-                body: JSON.stringify({ error: 'activity_id is required in path' })
+                body: JSON.stringify({ error: 'activity_id is required in the body' })
             };
         }
 

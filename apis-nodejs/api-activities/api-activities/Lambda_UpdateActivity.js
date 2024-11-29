@@ -9,17 +9,20 @@ const ACTIVITIES_TABLE = `${process.env.STAGE}_t_activities`;
 
 exports.handler = async (event) => {
     try {
-        // Obtener el activity_id de los parámetros del path
-        const activityId = event.pathParameters ? event.pathParameters.activity_id : undefined;
+        // Obtener el body de la solicitud
+        const body = event.body ? JSON.parse(event.body) : {};
+
+        // Obtener el activity_id del cuerpo
+        const activityId = body.activity_id;
 
         // Imprimir el activity_id en los logs de CloudWatch
         console.log(`Received activity_id for update: ${activityId}`);
 
-        // Verificar si el activity_id existe en la URL
+        // Verificar si el activity_id existe en el cuerpo
         if (!activityId) {
             return {
                 statusCode: 400,
-                body: JSON.stringify({ error: 'activity_id is required in path' })
+                body: JSON.stringify({ error: 'activity_id is required in the body' })
             };
         }
 
@@ -49,15 +52,14 @@ exports.handler = async (event) => {
         }
 
         // Si la actividad existe, actualizamos los campos
-        const body = event.body ? JSON.parse(event.body) : {};
-
+        const updateData = body.activity_data || {};
         const updateParams = {
             TableName: ACTIVITIES_TABLE,
             Key: { activity_id: activityId },
             UpdateExpression: "set activitie_type = :activitie_type, activity_data = :activity_data",
             ExpressionAttributeValues: {
                 ":activitie_type": body.activitie_type || existingActivity.Item.activitie_type,
-                ":activity_data": body.activity_data || existingActivity.Item.activity_data
+                ":activity_data": updateData
             },
             ReturnValues: "UPDATED_NEW"
         };
