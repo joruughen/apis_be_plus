@@ -1,6 +1,6 @@
+const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');  // Asegúrate de importar InvokeCommand
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, QueryCommand } = require('@aws-sdk/lib-dynamodb');
-const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
 
 const lambdaClient = new LambdaClient({});
 const dynamoClient = new DynamoDBClient({});
@@ -8,6 +8,7 @@ const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
 const ACTIVITIES_TABLE = `${process.env.STAGE}_t_activities`;
 const TOKENS_TABLE = `${process.env.STAGE}_t_access_tokens`;
+const VALIDATE_FUNCTION_NAME = process.env.VALIDATE_FUNCTION_NAME;  // Función para validar el token
 
 exports.handler = async (event, context) => {
     try {
@@ -16,21 +17,20 @@ exports.handler = async (event, context) => {
         if (!token) {
             return {
                 statusCode: 400,
-                body: { error: 'Missing Authorization token' }
+                body: JSON.stringify({ error: 'Missing Authorization token' })
             };
         }
 
         // Validar el token usando la función Lambda ValidateAccessToken
-        const validateFunctionName = process.env.VALIDATE_FUNCTION_NAME;
-        if (!validateFunctionName) {
+        if (!VALIDATE_FUNCTION_NAME) {
             return {
                 statusCode: 500,
-                body: { error: 'ValidateAccessToken function not configured' }
+                body: JSON.stringify({ error: 'ValidateAccessToken function not configured' })
             };
         }
 
         const validateResponse = await lambdaClient.send(new InvokeCommand({
-            FunctionName: validateFunctionName,
+            FunctionName: VALIDATE_FUNCTION_NAME,
             InvocationType: 'RequestResponse',
             Payload: JSON.stringify({ token })
         }));
@@ -39,11 +39,11 @@ exports.handler = async (event, context) => {
         if (validatePayload.statusCode === 403) {
             return {
                 statusCode: 403,
-                body: { error: validatePayload.body || 'Unauthorized Access' }
+                body: JSON.stringify({ error: validatePayload.body || 'Unauthorized Access' })
             };
         }
 
-        // Recuperar tenant_id desde el token
+        // Recuperar tenant_id y student_id desde el token
         const tokenItem = await docClient.send(new GetCommand({
             TableName: TOKENS_TABLE,
             Key: { token }
@@ -52,48 +52,53 @@ exports.handler = async (event, context) => {
         if (!tokenItem.Item) {
             return {
                 statusCode: 500,
-                body: { error: 'Failed to retrieve tenant_id from token' }
+                body: JSON.stringify({ error: 'Failed to retrieve tenant_id and student_id from token' })
             };
         }
 
         const tenantId = tokenItem.Item.tenant_id;
+        const studentId = tokenItem.Item.student_id;
 
-        if (!tenantId) {
+        if (!tenantId || !studentId) {
             return {
                 statusCode: 500,
-                body: { error: 'Missing tenant_id in token' }
+                body: JSON.stringify({ error: 'Missing tenant_id or student_id in token' })
             };
         }
 
-        // Parámetros de paginación y filtrado
-        const { limit = 10, lastEvaluatedKey, filters = {} } = event.queryStringParameters || {};
+        // Acceder al body de la solicitud
+        const body = JSON.parse(event.body || '{}');
+        const { limit = 10, lastEvaluatedKey } = body;
 
-        let filterExpression = 'tenant_id = :tenant_id';
-        let expressionAttributeValues = { ':tenant_id': tenantId };
+        // Extraer los filtros que se pasan en el body (pueden ser campos dinámicos)
+        const filterKeys = Object.keys(body).filter(key => key !== 'limit' && key !== 'lastEvaluatedKey');
+        let filterExpression = [];
+        let expressionAttributeValues = {};
 
-        // Construir la expresión de filtrado dinámica
-        Object.keys(filters).forEach((key) => {
-            filterExpression += ` AND ${key} = :${key}`;
-            expressionAttributeValues[`:${key}`] = filters[key];
+        // Construir la expresión de filtro dinámicamente
+        filterKeys.forEach(key => {
+            filterExpression.push(`${key} = :${key}`);
+            expressionAttributeValues[`:${key}`] = body[key];
         });
 
+        // Definir los parámetros de la consulta
         const params = {
             TableName: ACTIVITIES_TABLE,
-            KeyConditionExpression: filterExpression,
+            FilterExpression: filterExpression.length ? filterExpression.join(' AND ') : undefined,
             ExpressionAttributeValues: expressionAttributeValues,
-            Limit: parseInt(limit), // Convertir a número para limitar los resultados
-            ExclusiveStartKey: lastEvaluatedKey ? JSON.parse(lastEvaluatedKey) : undefined,
+            Limit: parseInt(limit),  // Limitar la cantidad de elementos retornados
+            ExclusiveStartKey: lastEvaluatedKey ? JSON.parse(lastEvaluatedKey) : undefined, // Paginación
         };
 
-        // Realizar la consulta en DynamoDB
-        const queryResult = await docClient.send(new QueryCommand(params));
+        // Ejecutar la consulta
+        const data = await docClient.send(new QueryCommand(params));
 
-        // Devolver la respuesta con los resultados y la paginación
+        // Responder con los resultados y el nextKey si hay más resultados
         return {
             statusCode: 200,
             body: JSON.stringify({
-                activities: queryResult.Items,
-                lastEvaluatedKey: queryResult.LastEvaluatedKey ? JSON.stringify(queryResult.LastEvaluatedKey) : null,
+                items: data.Items,
+                nextKey: data.LastEvaluatedKey ? JSON.stringify(data.LastEvaluatedKey) : null
             })
         };
 
