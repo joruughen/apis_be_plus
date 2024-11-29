@@ -70,8 +70,7 @@ exports.handler = async (event, context) => {
     }
 
     // Validar los datos del body
-    const body = JSON.parse(event.body || '{}');
-    const { activitie_type, ...otherData } = body;
+    const { activitie_type, ...otherData } = event.body;  // Ya no es necesario parsear el body
 
     if (!activitie_type) {
       return {
@@ -121,7 +120,7 @@ exports.handler = async (event, context) => {
     // Verificar si la actividad ya existe para este student_id y tenant_id
     const existingActivity = await docClient.send(new GetCommand({
       TableName: ACTIVITIES_TABLE,
-      Key: { tenant_id: tenantId, activity_id: activityId}
+      Key: { tenant_id: tenantId, activity_id: activityId, student_id: studentId }
     }));
 
     if (existingActivity.Item) {
