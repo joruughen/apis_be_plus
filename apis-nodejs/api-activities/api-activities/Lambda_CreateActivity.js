@@ -24,9 +24,10 @@ exports.handler = async (event) => {
     // Intentar parsear el cuerpo del evento
     let body;
     try {
+      console.log('Received event body:', event.body);
       body = JSON.parse(event.body);  // Intentamos convertir el cuerpo en un objeto JSON
       // Log del cuerpo del evento antes de intentar parsearlo
-      console.log('Received event body:', event.body);
+
 
     } catch (err) {
       console.error('Error parsing JSON body:', err);  // Log para depuración
