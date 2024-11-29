@@ -12,21 +12,21 @@ exports.handler = async (event) => {
         // Obtener el body de la solicitud (no parseado)
         const body = event.body || '';
 
-        // Extraer el activity_id del cuerpo
-        const activityId = body.activity_id || null;
+        // Extraer el tenant_id y activity_id del cuerpo
+        const { tenant_id, activity_id, activity_data, activitie_type } = body;
 
-        // Imprimir el activity_id en los logs de CloudWatch
-        console.log(`Received activity_id for update: ${activityId}`);
+        // Imprimir los valores recibidos en los logs de CloudWatch
+        console.log(`Received tenant_id: ${tenant_id}, activity_id for update: ${activity_id}`);
 
-        // Verificar si el activity_id existe
-        if (!activityId) {
+        // Verificar si el tenant_id o activity_id están presentes
+        if (!tenant_id || !activity_id) {
             return {
                 statusCode: 400,
-                body: JSON.stringify({ error: 'activity_id is required in the body' })
+                body: JSON.stringify({ error: 'tenant_id and activity_id are required in the body' })
             };
         }
 
-        // Validar el token de autorización (esto debería ser parte de tu lógica de autenticación)
+        // Validar el token de autorización
         const token = event.headers['Authorization'];
         if (!token) {
             return {
@@ -41,36 +41,35 @@ exports.handler = async (event) => {
         // Verificar si la actividad existe en la base de datos
         const existingActivity = await docClient.send(new GetCommand({
             TableName: ACTIVITIES_TABLE,
-            Key: { activity_id: activityId }
+            Key: { tenant_id, activity_id }
         }));
 
         if (!existingActivity.Item) {
             return {
                 statusCode: 404,
-                body: JSON.stringify({ error: `Activity with ID ${activityId} not found` })
+                body: JSON.stringify({ error: `Activity with tenant_id ${tenant_id} and activity_id ${activity_id} not found` })
             };
         }
 
-        // Si la actividad existe, actualizamos los campos
-        const updateData = body.activity_data || {};
+        // Actualizar la actividad en la base de datos
         const updateParams = {
             TableName: ACTIVITIES_TABLE,
-            Key: { activity_id: activityId },
+            Key: { tenant_id, activity_id },
             UpdateExpression: "set activitie_type = :activitie_type, activity_data = :activity_data",
             ExpressionAttributeValues: {
-                ":activitie_type": body.activitie_type || existingActivity.Item.activitie_type,
-                ":activity_data": updateData
+                ":activitie_type": activitie_type || existingActivity.Item.activitie_type,
+                ":activity_data": activity_data || existingActivity.Item.activity_data
             },
             ReturnValues: "UPDATED_NEW"
         };
 
-        // Actualizar la actividad en la base de datos
+        // Realizar la actualización
         const updatedActivity = await docClient.send(new UpdateCommand(updateParams));
 
         return {
             statusCode: 200,
             body: JSON.stringify({
-                message: `Activity ${activityId} updated successfully`,
+                message: `Activity with tenant_id ${tenant_id} and activity_id ${activity_id} updated successfully`,
                 updatedAttributes: updatedActivity.Attributes
             })
         };

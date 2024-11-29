@@ -1,5 +1,5 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, DeleteCommand } = require('@aws-sdk/lib-dynamodb');
+const { DynamoDBDocumentClient, DeleteCommand, GetCommand } = require('@aws-sdk/lib-dynamodb');
 
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
@@ -12,21 +12,21 @@ exports.handler = async (event) => {
         // Obtener el body de la solicitud (no parseado)
         const body = event.body || '';
 
-        // Extraer el activity_id del cuerpo (esperando que venga como un campo clave-valor en texto)
-        const activityId = body.activity_id || null;
+        // Extraer el tenant_id y activity_id del cuerpo
+        const { tenant_id, activity_id } = body;  // Esperamos tenant_id y activity_id en el cuerpo
 
-        // Imprimir el activity_id en los logs de CloudWatch
-        console.log(`Received activity_id for delete: ${activityId}`);
+        // Imprimir los valores recibidos en los logs de CloudWatch
+        console.log(`Received tenant_id: ${tenant_id}, activity_id for delete: ${activity_id}`);
 
-        // Verificar si el activity_id existe
-        if (!activityId) {
+        // Verificar si el activity_id o tenant_id están presentes
+        if (!tenant_id || !activity_id) {
             return {
                 statusCode: 400,
-                body: JSON.stringify({ error: 'activity_id is required in the body' })
+                body: JSON.stringify({ error: 'tenant_id and activity_id are required in the body' })
             };
         }
 
-        // Validar el token de autorización (esto debería ser parte de tu lógica de autenticación)
+        // Validar el token de autorización
         const token = event.headers['Authorization'];
         if (!token) {
             return {
@@ -38,15 +38,28 @@ exports.handler = async (event) => {
         // Aquí deberías agregar la lógica para validar el token usando otro servicio Lambda o validación
         // Por ahora asumimos que el token es válido
 
+        // Verificar si la actividad existe en la base de datos
+        const existingActivity = await docClient.send(new GetCommand({
+            TableName: ACTIVITIES_TABLE,
+            Key: { tenant_id, activity_id }
+        }));
+
+        if (!existingActivity.Item) {
+            return {
+                statusCode: 404,
+                body: JSON.stringify({ error: `Activity with tenant_id ${tenant_id} and activity_id ${activity_id} not found` })
+            };
+        }
+
         // Eliminar la actividad de la base de datos
         await docClient.send(new DeleteCommand({
             TableName: ACTIVITIES_TABLE,
-            Key: { activity_id: activityId } // Usamos el activity_id para identificar la actividad a eliminar
+            Key: { tenant_id, activity_id }
         }));
 
         return {
             statusCode: 200,
-            body: JSON.stringify({ message: `Activity ${activityId} deleted successfully` })
+            body: JSON.stringify({ message: `Activity with tenant_id ${tenant_id} and activity_id ${activity_id} deleted successfully` })
         };
 
     } catch (error) {
