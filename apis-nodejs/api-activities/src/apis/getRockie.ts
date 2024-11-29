@@ -1,8 +1,9 @@
-import * as AWS from 'aws-sdk';
 import { APIGatewayProxyHandler } from 'aws-lambda';
+import { DynamoDBClient, GetItemCommand } from '@aws-sdk/client-dynamodb';  // Importar DynamoDBClient y GetItemCommand
 import { validateToken } from '../utils/validateToken';  // Asegúrate de que la ruta sea correcta
 
-const dynamoDb = new AWS.DynamoDB.DocumentClient();
+// Crear una instancia del cliente de DynamoDB v3
+const dynamoDbClient = new DynamoDBClient({ region: 'us-east-1' });  // Asegúrate de usar la región correcta
 const tableName = process.env.TABLE_NAME!;
 
 export const handler: APIGatewayProxyHandler = async (event) => {
@@ -30,16 +31,18 @@ export const handler: APIGatewayProxyHandler = async (event) => {
             };
         }
 
-        // Obtener los detalles del Rockie desde la tabla de DynamoDB
-        const getRockieResponse = await dynamoDb
-            .get({
-                TableName: tableName,
-                Key: {
-                    tenant_id,
-                    rockie_id: body.rockie_id,  // Usamos `rockie_id` como clave primaria o secundaria
-                },
-            })
-            .promise();
+        // Definir los parámetros de la consulta para obtener el Rockie desde DynamoDB
+        const params = {
+            TableName: tableName,
+            Key: {
+                tenant_id: { S: tenant_id },  // DynamoDB usa tipos como `S` para String
+                rockie_id: { S: body.rockie_id },  // Asegúrate de que rockie_id sea del tipo correcto
+            },
+        };
+
+        // Ejecutar el comando GetItemCommand con el cliente de DynamoDB
+        const command = new GetItemCommand(params);
+        const getRockieResponse = await dynamoDbClient.send(command);
 
         // Verificar si el Rockie existe en la tabla
         if (!getRockieResponse.Item) {
