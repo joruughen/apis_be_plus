@@ -118,9 +118,13 @@ exports.handler = async (event, context) => {
       Item: newActivityItem
     }));
 
+    // Responder con toda la información de la actividad creada
     return {
       statusCode: 200,
-      body: JSON.stringify({ message: 'Activity created successfully', activity_id })
+      body: JSON.stringify({
+        message: 'Activity created successfully',
+        activity: newActivityItem
+      })
     };
 
   } catch (error) {
