@@ -16,7 +16,7 @@ package:
   include:
     - dist/apis/**  # Incluir solo los archivos JavaScript generados
     - dist/utils/**  # Incluir archivos necesarios de utils
-    - 'node_modules/**'  # importar dependencias node_modules
+    - node_modules/**  # importar dependencias node_modules
 
 functions:
   CreateRockie:
