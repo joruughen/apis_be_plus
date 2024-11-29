@@ -71,9 +71,9 @@ exports.handler = async (event, context) => {
 
     // Validar los datos del body
     const body = event.body || {};  // Asumimos que el body ya está parseado en el yml
-    const { activity_id, activitie_type } = body;
+    const { activity_id, activity_type } = body;
 
-    if (!activitie_type) {
+    if (!activity_type) {
       return {
         statusCode: 400,
         body: { error: 'Missing activity_type in request body' }
@@ -103,7 +103,7 @@ exports.handler = async (event, context) => {
       tenant_id: tenantId,
       activity_id: newActivityId,
       student_id: studentId,
-      activitie_type: activitie_type,
+      activity_type: activity_type,
       creation_date: creationDate,
       activity_data: activityData // Aquí se agregan los campos "activity_data"
     };
