@@ -19,7 +19,7 @@ exports.handler = async (event, context) => {
     if (!token) {
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: 'Missing Authorization token' })
+        body: JSON.stringify({ error: 'Missing Authorization token' })  // Devolver objeto directamente
       };
     }
 
@@ -28,7 +28,7 @@ exports.handler = async (event, context) => {
     if (!validateFunctionName) {
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: 'ValidateAccessToken function not configured' })
+        body: JSON.stringify({ error: 'ValidateAccessToken function not configured' })  // Devolver objeto directamente
       };
     }
 
@@ -42,7 +42,7 @@ exports.handler = async (event, context) => {
     if (validatePayload.statusCode === 403) {
       return {
         statusCode: 403,
-        body: JSON.stringify({ error: validatePayload.body || 'Unauthorized Access' })
+        body: JSON.stringify({ error: validatePayload.body || 'Unauthorized Access' })  // Devolver objeto directamente
       };
     }
 
@@ -55,7 +55,7 @@ exports.handler = async (event, context) => {
     if (!tokenItem.Item) {
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: 'Failed to retrieve tenant_id and student_id from token' })
+        body: JSON.stringify({ error: 'Failed to retrieve tenant_id and student_id from token' })  // Devolver objeto directamente
       };
     }
 
@@ -65,68 +65,51 @@ exports.handler = async (event, context) => {
     if (!tenantId || !studentId) {
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: 'Missing tenant_id or student_id in token' })
+        body: JSON.stringify({ error: 'Missing tenant_id or student_id in token' })  // Devolver objeto directamente
       };
     }
 
     // Validar los datos del body
-    const { activitie_type, ...otherData } = event.body;  // Ya no es necesario parsear el body
+    const body = event.body || {};  // No necesitamos parsearlo aquí debido a la configuración del YML
+    const { activity_id = uuidv4(), activitie_type, time } = body;
 
     if (!activitie_type) {
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: 'Missing activitie_type in request body' })
+        body: JSON.stringify({ error: 'Missing activity_type in request body' })  // Devolver objeto directamente
       };
     }
 
-    // Generar un nuevo activity_id
-    const activityId = uuidv4();
+    // Crear objeto de la actividad
     const creationDate = moment().format('YYYY-MM-DD HH:mm:ss');
 
-    // Crear el objeto activity_data que contendrá todos los campos anidados
-    let activityData = {};
-
-    // Iterar sobre las claves del body para separar los campos anidados de los no anidados
-    for (const [key, value] of Object.entries(otherData)) {
-      if (key.includes('.')) {
-        // Si el nombre de la clave contiene un punto, lo tratamos como anidado
-        const keys = key.split('.');
-        let temp = activityData;
-
-        // Recorrer las claves anidadas
-        for (let i = 0; i < keys.length - 1; i++) {
-          if (!temp[keys[i]]) temp[keys[i]] = {}; // Crear objetos intermedios si no existen
-          temp = temp[keys[i]]; // Navegar al siguiente nivel
-        }
-
-        // Asignar el valor final al último nivel de la jerarquía
-        temp[keys[keys.length - 1]] = value;
-      } else {
-        // Si no es un campo anidado, lo guardamos directamente en el objeto principal
-        newActivityItem[key] = value;
+    const activityData = {};
+    for (const key in body) {
+      if (key.startsWith('activity_data.')) {
+        const field = key.replace('activity_data.', '');
+        activityData[field] = body[key];
       }
     }
 
-    // Crear el objeto de la actividad
     const newActivityItem = {
       tenant_id: tenantId,
-      activity_id: activityId,
+      activity_id: activity_id,
       student_id: studentId,
       activitie_type: activitie_type,
       creation_date: creationDate,
-      activity_data: activityData, // Aquí guardamos los datos anidados
+      activity_data: activityData
     };
 
     // Verificar si la actividad ya existe para este student_id y tenant_id
     const existingActivity = await docClient.send(new GetCommand({
       TableName: ACTIVITIES_TABLE,
-      Key: { tenant_id: tenantId, activity_id: activityId}
+      Key: { tenant_id: tenantId, activity_id: activity_id, student_id: studentId }
     }));
 
     if (existingActivity.Item) {
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: 'Activity already exists for this student_id and tenant_id' })
+        body: JSON.stringify({ error: 'Activity already exists for this student_id and tenant_id' })  // Devolver objeto directamente
       };
     }
 
@@ -136,19 +119,20 @@ exports.handler = async (event, context) => {
       Item: newActivityItem
     }));
 
+    // Responder con el objeto correctamente estructurado
     return {
       statusCode: 200,
       body: JSON.stringify({
         message: 'Activity created successfully',
-        activity: newActivityItem // Aquí devolvemos el objeto `activity` completo y no como string
-      }, null, 2) // El tercer parámetro es la cantidad de espacios para la indentación
+        activity: newActivityItem  // Devolver todo el objeto de la actividad
+      })
     };
 
   } catch (error) {
     console.error('Error occurred:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ error: error.message })  // Devolver objeto directamente
     };
   }
 };
