@@ -1,4 +1,4 @@
-const { LambdaClient } = require('@aws-sdk/client-lambda');
+const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');  // Importar InvokeCommand correctamente
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, GetCommand, DeleteCommand } = require('@aws-sdk/lib-dynamodb');
 
