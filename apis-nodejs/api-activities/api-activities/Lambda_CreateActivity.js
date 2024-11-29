@@ -14,7 +14,7 @@ const TOKENS_TABLE = `${process.env.STAGE}_t_access_tokens`;
 exports.handler = async (event, context) => {
   try {
     // Obtener el token de autorización desde los headers
-    const token = event.headers['Authorization'];
+    const token = event.headers['Authorization'] || event.headers['authorization'];  // Agregar soporte para header en minúsculas
     if (!token) {
       return {
         statusCode: 400,
@@ -31,12 +31,14 @@ exports.handler = async (event, context) => {
       };
     }
 
+    // Invocar Lambda ValidateAccessToken
     const validateResponse = await lambdaClient.send(new InvokeCommand({
       FunctionName: validateFunctionName,
       InvocationType: 'RequestResponse',
       Payload: JSON.stringify({ token })
     }));
 
+    // Parsear la respuesta de la función ValidateAccessToken
     const validatePayload = JSON.parse(Buffer.from(validateResponse.Payload).toString());
     if (validatePayload.statusCode === 403) {
       return {
@@ -130,7 +132,7 @@ exports.handler = async (event, context) => {
     console.error('Error occurred:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ error: error.message || 'Internal Server Error' })
     };
   }
 };
