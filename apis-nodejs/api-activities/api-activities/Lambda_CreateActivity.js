@@ -120,7 +120,7 @@ exports.handler = async (event, context) => {
     // Verificar si la actividad ya existe para este student_id y tenant_id
     const existingActivity = await docClient.send(new GetCommand({
       TableName: ACTIVITIES_TABLE,
-      Key: { tenant_id: tenantId, activity_id: activityId, student_id: studentId }
+      Key: { tenant_id: tenantId, activity_id: activityId}
     }));
 
     if (existingActivity.Item) {
