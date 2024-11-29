@@ -42,6 +42,7 @@ export const handler = async (event: any) => {
         };
 
         // Crear un comando PutItemCommand
+        // @ts-ignore
         const command = new PutItemCommand(params);
 
         // Ejecutar el comando en DynamoDB
