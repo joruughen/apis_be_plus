@@ -114,5 +114,4 @@ custom:
   validateTokenFunction: api-security-${self:provider.stage}-ValidateAccessToken
   tableName: ${self:provider.stage}_t_rockies
 
-plugins:
-  - serverless-plugin-typescript
+
