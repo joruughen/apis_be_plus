@@ -13,8 +13,45 @@ const TOKENS_TABLE = `${process.env.STAGE}_t_access_tokens`;
 
 exports.handler = async (event, context) => {
   try {
+    // Verificar si el cuerpo está presente
+    if (!event.body) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Request body is missing' })
+      };
+    }
+
+    // Intentar parsear el cuerpo del evento
+    let body;
+    try {
+      body = JSON.parse(event.body);  // Intentamos convertir el cuerpo en un objeto JSON
+    } catch (err) {
+      console.error('Error parsing JSON body:', err);  // Log para depuración
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Invalid JSON format in request body' })
+      };
+    }
+
+    // Verificar si el cuerpo tiene los campos necesarios
+    const { activity_id, activitie_type, time } = body;
+
+    if (!activity_id) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Missing activity_id in request body' })
+      };
+    }
+
+    if (!activitie_type) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Missing activity_type in request body' })
+      };
+    }
+
     // Obtener el token de autorización desde los headers
-    const token = event.headers['Authorization'] || event.headers['authorization'];  // Agregar soporte para header en minúsculas
+    const token = event.headers['Authorization'];
     if (!token) {
       return {
         statusCode: 400,
@@ -31,14 +68,12 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Invocar Lambda ValidateAccessToken
     const validateResponse = await lambdaClient.send(new InvokeCommand({
       FunctionName: validateFunctionName,
       InvocationType: 'RequestResponse',
       Payload: JSON.stringify({ token })
     }));
 
-    // Parsear la respuesta de la función ValidateAccessToken y manejar errores
     const validatePayload = JSON.parse(Buffer.from(validateResponse.Payload).toString());
     if (validatePayload.statusCode === 403) {
       return {
@@ -67,33 +102,6 @@ exports.handler = async (event, context) => {
       return {
         statusCode: 500,
         body: JSON.stringify({ error: 'Missing tenant_id or student_id in token' })
-      };
-    }
-
-    // Validar los datos del body
-    let body;
-    try {
-      body = JSON.parse(event.body || '{}');
-    } catch (err) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Invalid JSON format in request body' })
-      };
-    }
-
-    const { activity_id, activitie_type, time } = body;
-
-    if (!activity_id) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Missing activity_id in request body' })
-      };
-    }
-
-    if (!activitie_type) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Missing activity_type in request body' })
       };
     }
 
@@ -141,7 +149,7 @@ exports.handler = async (event, context) => {
     console.error('Error occurred:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: error.message || 'Internal Server Error' })
+      body: JSON.stringify({ error: error.message })
     };
   }
 };
