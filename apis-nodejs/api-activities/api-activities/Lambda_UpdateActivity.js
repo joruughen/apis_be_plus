@@ -45,7 +45,7 @@ exports.handler = async (event, context) => {
         if (!tokenItem.Item) {
             return {
                 statusCode: 500,
-                body: JSON.stringify({ error: 'Failed to retrieve tenant_id and student_id from token' })
+                body: { error: 'Failed to retrieve tenant_id and student_id from token' }
             };
         }
 
@@ -55,7 +55,7 @@ exports.handler = async (event, context) => {
         if (!tenantId || !studentId) {
             return {
                 statusCode: 500,
-                body: JSON.stringify({ error: 'Missing tenant_id or student_id in token' })
+                body: { error: 'Missing tenant_id or student_id in token' }
             };
         }
 
@@ -65,7 +65,7 @@ exports.handler = async (event, context) => {
         if (!activity_id) {
             return {
                 statusCode: 400,
-                body: JSON.stringify({ error: 'Missing activity_id in request body' })
+                body: { error: 'Missing activity_id in request body' }
             };
         }
 
@@ -78,7 +78,7 @@ exports.handler = async (event, context) => {
         if (!activity.Item) {
             return {
                 statusCode: 404,
-                body: JSON.stringify({ error: 'Activity not found' })
+                body: { error: 'Activity not found' }
             };
         }
 
@@ -86,7 +86,7 @@ exports.handler = async (event, context) => {
         if (activity.Item.student_id !== studentId) {
             return {
                 statusCode: 403,
-                body: JSON.stringify({ error: 'Activity student_id does not match token student_id' })
+                body: { error: 'Activity student_id does not match token student_id' }
             };
         }
 
@@ -122,7 +122,7 @@ exports.handler = async (event, context) => {
         console.error('Error occurred:', error);
         return {
             statusCode: 500,
-            body: JSON.stringify({ error: error.message })
+            body: { error: error.message }
         };
     }
 };
