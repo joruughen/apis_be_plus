@@ -16,6 +16,9 @@ package:
   include:
     - node_modules/**  # Asegúrate de incluir node_modules
     - Lambda_CreateActivity.js  # Asegúrate de incluir tu código también
+    - Lambda_UpdateActivity.js  # Agrega la función de actualización
+    - Lambda_DeleteActivity.js  # Agrega la función de eliminación
+    - Lambda_GetActivity.js  # Agrega la función de obtención
 
 functions:
   Lambda_CreateActivity:
@@ -45,8 +48,86 @@ functions:
             headers:
               Content-Type: "'application/json'"  # Garantizar que la respuesta sea de tipo JSON
 
+  Lambda_UpdateActivity:
+    handler: Lambda_UpdateActivity.handler  # Apunta al archivo de la función de actualización
+    memorySize: 512
+    timeout: 30
+    environment:
+      ACTIVITIES_TABLE: ${self:custom.activitiesTable}
+      STAGE: ${self:provider.stage}
+    events:
+      - http:
+          path: activities/{activity_id}
+          method: put
+          integration: lambda
+          request:
+            template:
+              application/json: |
+                {
+                  "method": "$context.httpMethod",
+                  "path": "$context.path",
+                  "headers": {
+                    "Authorization": "$input.params('Authorization')"
+                  },
+                  "body": $input.body
+                }
+          response:
+            headers:
+              Content-Type: "'application/json'"
+
+  Lambda_DeleteActivity:
+    handler: Lambda_DeleteActivity.handler  # Apunta al archivo de la función de eliminación
+    memorySize: 512
+    timeout: 30
+    environment:
+      ACTIVITIES_TABLE: ${self:custom.activitiesTable}
+      STAGE: ${self:provider.stage}
+    events:
+      - http:
+          path: activities/{activity_id}
+          method: delete
+          integration: lambda
+          request:
+            template:
+              application/json: |
+                {
+                  "method": "$context.httpMethod",
+                  "path": "$context.path",
+                  "headers": {
+                    "Authorization": "$input.params('Authorization')"
+                  }
+                }
+          response:
+            headers:
+              Content-Type: "'application/json'"
+
+  Lambda_GetActivity:
+    handler: Lambda_GetActivity.handler  # Apunta al archivo de la función de obtención
+    memorySize: 512
+    timeout: 30
+    environment:
+      ACTIVITIES_TABLE: ${self:custom.activitiesTable}
+      STAGE: ${self:provider.stage}
+    events:
+      - http:
+          path: activities
+          method: get
+          integration: lambda
+          request:
+            template:
+              application/json: |
+                {
+                  "method": "$context.httpMethod",
+                  "path": "$context.path",
+                  "headers": {
+                    "Authorization": "$input.params('Authorization')"
+                  },
+                  "queryStringParameters": $input.params().querystring
+                }
+          response:
+            headers:
+              Content-Type: "'application/json'"
 
 custom:
   activitiesTable: ${self:provider.stage}_t_activities  # La tabla de actividades cambia según el stage
   validateTokenFunction: api-security-${self:provider.stage}-ValidateAccessToken
-
