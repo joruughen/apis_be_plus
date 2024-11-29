@@ -59,13 +59,13 @@ exports.handler = async (event, context) => {
             };
         }
 
-        // Obtener el activity_id desde el body
-        const { activity_id } = JSON.parse(event.body);
+        // Obtener el activity_id desde los parámetros del path
+        const activity_id = event.pathParameters.activity_id;
 
         if (!activity_id) {
             return {
                 statusCode: 400,
-                body: JSON.stringify({ error: 'Missing activity_id in request body' })
+                body: JSON.stringify({ error: 'Missing activity_id in path parameters' })
             };
         }
 
@@ -98,9 +98,7 @@ exports.handler = async (event, context) => {
 
         return {
             statusCode: 200,
-            body: JSON.stringify({
-                message: 'Activity deleted successfully'
-            })
+            body: JSON.stringify({ message: 'Activity deleted successfully' })
         };
 
     } catch (error) {

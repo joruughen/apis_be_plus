@@ -59,8 +59,8 @@ exports.handler = async (event, context) => {
             };
         }
 
-        // Obtener el activity_id desde el body
-        const { activity_id, activity_type, activity_data } = JSON.parse(event.body);
+        // Obtener el activity_id desde los parámetros del path
+        const { activity_id, activity_type, activity_data } = event.body;
 
         if (!activity_id) {
             return {
