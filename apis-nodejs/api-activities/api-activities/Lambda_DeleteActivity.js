@@ -1,4 +1,4 @@
-const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
+const { LambdaClient } = require('@aws-sdk/client-lambda');
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, GetCommand, DeleteCommand } = require('@aws-sdk/lib-dynamodb');
 
@@ -17,7 +17,7 @@ exports.handler = async (event, context) => {
         if (!token) {
             return {
                 statusCode: 400,
-                body: { error: 'Missing Authorization token' }
+                body: JSON.stringify({ error: 'Missing Authorization token' })
             };
         }
 
@@ -26,7 +26,7 @@ exports.handler = async (event, context) => {
         if (!validateFunctionName) {
             return {
                 statusCode: 500,
-                body: { error: 'ValidateAccessToken function not configured' }
+                body: JSON.stringify({ error: 'ValidateAccessToken function not configured' })
             };
         }
 
@@ -40,7 +40,7 @@ exports.handler = async (event, context) => {
         if (validatePayload.statusCode === 403) {
             return {
                 statusCode: 403,
-                body: { error: validatePayload.body || 'Unauthorized Access' }
+                body: JSON.stringify({ error: validatePayload.body || 'Unauthorized Access' })
             };
         }
 
@@ -53,7 +53,7 @@ exports.handler = async (event, context) => {
         if (!tokenItem.Item) {
             return {
                 statusCode: 500,
-                body: { error: 'Failed to retrieve tenant_id and student_id from token' }
+                body: JSON.stringify({ error: 'Failed to retrieve tenant_id and student_id from token' })
             };
         }
 
@@ -63,22 +63,23 @@ exports.handler = async (event, context) => {
         if (!tenantId || !studentId) {
             return {
                 statusCode: 500,
-                body: { error: 'Missing tenant_id or student_id in token' }
+                body: JSON.stringify({ error: 'Missing tenant_id or student_id in token' })
             };
         }
 
-        // Validar los datos del body
-        const body = event.body || {};  // Asumimos que el body ya está parseado en el yml
-        const { activity_id } = body;
+        // Acceder directamente al body de la solicitud
+        const body = event.body;  // El body ya está disponible, no lo parseamos
+
+        const activity_id = body.activity_id;
 
         if (!activity_id) {
             return {
                 statusCode: 400,
-                body: { error: 'Missing activity_id in request body' }
+                body: JSON.stringify({ error: 'Missing activity_id in request body' })
             };
         }
 
-        // Verificar si la actividad existe para este tenant_id y student_id
+        // Verificar si la actividad existe para este tenant_id y activity_id
         const existingActivity = await docClient.send(new GetCommand({
             TableName: ACTIVITIES_TABLE,
             Key: { tenant_id: tenantId, activity_id: activity_id }
@@ -87,19 +88,19 @@ exports.handler = async (event, context) => {
         if (!existingActivity.Item) {
             return {
                 statusCode: 404,
-                body: { error: 'Activity not found for this tenant_id and activity_id' }
+                body: JSON.stringify({ error: 'Activity not found for this tenant_id and activity_id' })
             };
         }
 
-        // Verificar que el student_id en la actividad coincide con el student_id del token
+        // Verificar que el student_id de la actividad coincide con el student_id del token
         if (existingActivity.Item.student_id !== studentId) {
             return {
                 statusCode: 403,
-                body: { error: 'You are not authorized to delete this activity' }
+                body: JSON.stringify({ error: 'Student ID mismatch, cannot delete this activity' })
             };
         }
 
-        // Eliminar la actividad de DynamoDB
+        // Eliminar la actividad de la base de datos
         await docClient.send(new DeleteCommand({
             TableName: ACTIVITIES_TABLE,
             Key: { tenant_id: tenantId, activity_id: activity_id }
@@ -108,14 +109,17 @@ exports.handler = async (event, context) => {
         // Responder con éxito
         return {
             statusCode: 200,
-            body: { message: 'Activity deleted successfully' }
+            body: JSON.stringify({
+                message: 'Activity deleted successfully',
+                activity_id: activity_id
+            })
         };
 
     } catch (error) {
         console.error('Error occurred:', error);
         return {
             statusCode: 500,
-            body: { error: error.message }
+            body: JSON.stringify({ error: error.message })
         };
     }
 };
