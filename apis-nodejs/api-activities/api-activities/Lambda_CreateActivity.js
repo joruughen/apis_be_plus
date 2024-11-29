@@ -120,7 +120,7 @@ exports.handler = async (event, context) => {
     // Verificar si la actividad ya existe para este student_id y tenant_id
     const existingActivity = await docClient.send(new GetCommand({
       TableName: ACTIVITIES_TABLE,
-      Key: { tenant_id: tenantId, activity_id: activityId }
+      Key: { tenant_id: tenantId, activity_id: activityId, student_id: studentId }
     }));
 
     if (existingActivity.Item) {
@@ -140,8 +140,8 @@ exports.handler = async (event, context) => {
       statusCode: 200,
       body: JSON.stringify({
         message: 'Activity created successfully',
-        activity: newActivityItem
-      })
+        activity: newActivityItem // Aquí devolvemos el objeto `activity` completo y no como string
+      }, null, 2) // El tercer parámetro es la cantidad de espacios para la indentación
     };
 
   } catch (error) {
