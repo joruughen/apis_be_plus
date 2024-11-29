@@ -1,28 +1,35 @@
-const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, GetCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
-const moment = require('moment');
+const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
 
-// Crear clientes para DynamoDB y Lambda usando la versión modular
-const lambdaClient = new LambdaClient({});
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
-const ACTIVITIES_TABLE = `${process.env.STAGE}_t_activities`;
-const TOKENS_TABLE = `${process.env.STAGE}_t_access_tokens`;
+const ACTIVITIES_TABLE = process.env.ACTIVITIES_TABLE;
+const TOKENS_TABLE = process.env.TOKENS_TABLE;
+const lambdaClient = new LambdaClient({});
 
-exports.handler = async (event, context) => {
+exports.handler = async (event) => {
     try {
+        // Obtener el activity_id desde los parámetros de la ruta
+        const activityId = event.pathParameters ? event.pathParameters.activity_id : undefined;
+        if (!activityId) {
+            return {
+                statusCode: 400,
+                body: { error: 'activity_id is required in path' }
+            };
+        }
+
         // Obtener el token de autorización desde los headers
         const token = event.headers['Authorization'];
         if (!token) {
             return {
                 statusCode: 400,
-                body: JSON.stringify({ error: 'Missing Authorization token' })
+                body: { error: 'Missing Authorization token' }
             };
         }
 
-        // Validar el token utilizando la función Lambda ValidateAccessToken
+        // Validar el token
         const validateFunctionName = process.env.VALIDATE_FUNCTION_NAME;
         const validateResponse = await lambdaClient.send(new InvokeCommand({
             FunctionName: validateFunctionName,
@@ -34,11 +41,11 @@ exports.handler = async (event, context) => {
         if (validatePayload.statusCode === 403) {
             return {
                 statusCode: 403,
-                body: JSON.stringify({ error: 'Unauthorized Access' })
+                body: { error: 'Unauthorized' }
             };
         }
 
-        // Obtener el student_id desde el token
+        // Obtener tenant_id y student_id desde el token
         const tokenItem = await docClient.send(new GetCommand({
             TableName: TOKENS_TABLE,
             Key: { token }
@@ -47,54 +54,67 @@ exports.handler = async (event, context) => {
         if (!tokenItem.Item) {
             return {
                 statusCode: 500,
-                body: JSON.stringify({ error: 'Failed to retrieve tenant_id and student_id from token' })
+                body: { error: 'Failed to retrieve tenant_id and student_id from token' }
             };
         }
 
+        const tenantId = tokenItem.Item.tenant_id;
         const studentId = tokenItem.Item.student_id;
-        const activityId = event.pathParameters.activity_id;  // Obtenemos el activity_id de la URL
 
-        // Validar que la actividad existe
-        const activityResponse = await docClient.send(new GetCommand({
+        if (!tenantId || !studentId) {
+            return {
+                statusCode: 500,
+                body: { error: 'Missing tenant_id or student_id in token' }
+            };
+        }
+
+        // Recuperar la actividad actual
+        const activityItem = await docClient.send(new GetCommand({
             TableName: ACTIVITIES_TABLE,
-            Key: { student_id: studentId, activity_id: activityId }
+            Key: { tenant_id: tenantId, activity_id: activityId }
         }));
 
-        if (!activityResponse.Item) {
+        if (!activityItem.Item) {
             return {
                 statusCode: 404,
-                body: JSON.stringify({ error: 'Activity not found for this student_id and activity_id' })
+                body: { error: 'Activity not found' }
+            };
+        }
+
+        // Verificar si el student_id coincide con el del token
+        if (activityItem.Item.student_id !== studentId) {
+            return {
+                statusCode: 403,
+                body: { error: 'Unauthorized to update this activity' }
             };
         }
 
         // Actualizar los datos de la actividad
-        const updateData = JSON.parse(event.body);  // Datos nuevos para actualizar
+        const body = event.body ? JSON.parse(event.body) : {};
+
         const updateParams = {
             TableName: ACTIVITIES_TABLE,
-            Key: { student_id: studentId, activity_id: activityId },
-            UpdateExpression: "set activitie_type = :activitie_type, activity_data = :activity_data",
+            Key: { tenant_id: tenantId, activity_id: activityId },
+            UpdateExpression: 'SET activitie_type = :activitie_type, activity_data = :activity_data',
             ExpressionAttributeValues: {
-                ":activitie_type": updateData.activitie_type || activityResponse.Item.activitie_type,
-                ":activity_data": updateData.activity_data || activityResponse.Item.activity_data
+                ':activitie_type': body.activitie_type || activityItem.Item.activitie_type,
+                ':activity_data': body.activity_data || activityItem.Item.activity_data
             },
-            ReturnValues: "ALL_NEW"
+            ReturnValues: 'ALL_NEW'
         };
 
         const updatedActivity = await docClient.send(new UpdateCommand(updateParams));
 
         return {
             statusCode: 200,
-            body: JSON.stringify({
-                message: 'Activity updated successfully',
-                updatedActivity: updatedActivity.Attributes
-            })
+            body: { message: 'Activity updated successfully', activity: updatedActivity.Attributes }
         };
 
     } catch (error) {
         console.error('Error occurred:', error);
         return {
             statusCode: 500,
-            body: JSON.stringify({ error: error.message })
+            body: { error: error.message }
         };
     }
 };
