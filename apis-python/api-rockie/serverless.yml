@@ -108,3 +108,4 @@ functions:
 
 custom:
   validateTokenFunction: api-security-${self:provider.stage}-ValidateAccessToken
+

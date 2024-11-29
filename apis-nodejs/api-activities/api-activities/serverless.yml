@@ -9,6 +9,7 @@ provider:
   stage: ${opt:stage, 'dev'}  # Permite establecer el stage desde la línea de comandos
   environment:
     ACTIVITIES_TABLE: ${self:custom.activitiesTable}  # Configura la tabla de actividades
+    VALIDATE_FUNCTION_NAME: ${self:custom.validateTokenFunction}
 
 package:
   individually: true  # Permite empaquetar las funciones individualmente
@@ -44,3 +45,5 @@ functions:
 
 custom:
   activitiesTable: ${self:provider.stage}_t_activities  # La tabla de actividades cambia según el stage
+  validateTokenFunction: api-security-${self:provider.stage}-ValidateAccessToken
+
