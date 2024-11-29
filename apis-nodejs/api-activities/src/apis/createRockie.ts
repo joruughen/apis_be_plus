@@ -1,14 +1,13 @@
-import * as AWS from 'aws-sdk';
-import { APIGatewayProxyHandler } from 'aws-lambda';
-import { validateToken } from '../utils/validateToken';  // Asegúrate de que la ruta sea correcta
+import { DynamoDBClient, PutItemCommand } from '@aws-sdk/client-dynamodb';
+import { validateToken } from '../utils/validateToken'; // Ruta de validación del token
 import { v4 as uuidv4 } from 'uuid';
 
-const dynamoDb = new AWS.DynamoDB.DocumentClient();
-const tableName = process.env.TABLE_NAME!;
+// Crear una instancia del cliente DynamoDB v3
+const dynamoDbClient = new DynamoDBClient({ region: 'us-east-1' });
+const tableName = process.env.TABLE_NAME;
 
-export const handler: APIGatewayProxyHandler = async (event) => {
+export const handler = async (event: any) => {
     try {
-        // Obtener el token de autorización desde los headers
         const token = event.headers.Authorization;
         if (!token) {
             return {
@@ -17,13 +16,10 @@ export const handler: APIGatewayProxyHandler = async (event) => {
             };
         }
 
-        // Validar el token
         const { tenant_id, student_id } = await validateToken(token);
-        console.log(`Token validado: tenant_id = ${tenant_id}, student_id = ${student_id}`);
 
         const body = JSON.parse(event.body || '{}');
 
-        // Verificar que los campos obligatorios estén presentes
         if (!body.rockie_name || !body.creation_date) {
             return {
                 statusCode: 400,
@@ -31,7 +27,6 @@ export const handler: APIGatewayProxyHandler = async (event) => {
             };
         }
 
-        // Crear el nuevo Rockie
         const newRockie = {
             tenant_id,
             rockie_id: uuidv4(),
@@ -41,15 +36,16 @@ export const handler: APIGatewayProxyHandler = async (event) => {
             additional_data: body.additional_data || {},
         };
 
-        console.log('Nuevo Rockie:', newRockie);
+        const params = {
+            TableName: tableName,
+            Item: newRockie,
+        };
 
-        // Insertar el nuevo Rockie en DynamoDB
-        await dynamoDb
-            .put({
-                TableName: tableName,
-                Item: newRockie,
-            })
-            .promise();
+        // Crear un comando PutItemCommand
+        const command = new PutItemCommand(params);
+
+        // Ejecutar el comando en DynamoDB
+        await dynamoDbClient.send(command);
 
         return {
             statusCode: 201,
@@ -59,9 +55,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         console.error('Error interno:', error);
         return {
             statusCode: 500,
-            body: JSON.stringify({
-                message: 'Error interno del servidor al crear el Rockie',
-            }),
+            body: JSON.stringify({ message: 'Error interno al crear el Rockie' }),
         };
     }
 };
