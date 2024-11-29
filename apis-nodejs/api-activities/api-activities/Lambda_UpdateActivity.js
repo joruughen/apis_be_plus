@@ -112,10 +112,10 @@ exports.handler = async (event, context) => {
 
         return {
             statusCode: 200,
-            body: JSON.stringify({
+            body: {
                 message: 'Activity updated successfully',
                 activity: updatedItem.Attributes
-            })
+            }
         };
 
     } catch (error) {
