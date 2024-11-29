@@ -3,14 +3,9 @@
 
 
 ## apis-nodejs
-npm init -y
 
-npm install aws-sdk
-npm install -D typescript @types/aws-lambda @types/node @types/uuid
+npm y node en versiones 10.9.0 y  v23.1.0 
 
-echo "node_modules/" >> .gitignore
-echo "dist/" >> .gitignore
-echo ".env" >> .gitignore
+npm install
 
-
-usar para deploy: npx serverless deploy
+npm run build
