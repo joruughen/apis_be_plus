@@ -71,7 +71,7 @@ exports.handler = async (event, context) => {
 
     // Validar los datos del body
     const body = event.body || {};  // Asumimos que el body ya está parseado en el yml
-    const { activity_id, activity_type, activity_data } = body;
+    const { activity_id, activity_type } = body;
 
     if (!activity_type) {
       return {
@@ -86,8 +86,19 @@ exports.handler = async (event, context) => {
     // Crear objeto de la actividad
     const creationDate = moment().format('YYYY-MM-DD HH:mm:ss');
 
-    // Si se proporcionó activity_data, usalo directamente
-    const activityData = activity_data || {};
+    // Inicializar los objetos
+    let activityData = {};
+    let otherFields = {};
+
+    // Iterar sobre las claves del body para extraer datos de "activity_data" y otros campos
+    Object.keys(body).forEach((key) => {
+      if (key.startsWith('activity_data.')) {
+        const subKey = key.replace('activity_data.', '');
+        activityData[subKey] = body[key];
+      } else {
+        otherFields[key] = body[key];
+      }
+    });
 
     // Crear el nuevo objeto de actividad
     const newActivityItem = {
@@ -96,7 +107,8 @@ exports.handler = async (event, context) => {
       student_id: studentId,
       activity_type: activity_type,
       creation_date: creationDate,
-      activity_data: activityData // Aquí se agrega el activity_data completo
+      activity_data: activityData, // Aquí se agregan los campos "activity_data"
+      ...otherFields // Aquí se agregan los otros campos fuera de "activity_data"
     };
 
     // Verificar si la actividad ya existe para este student_id y tenant_id
