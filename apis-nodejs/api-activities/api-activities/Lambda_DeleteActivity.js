@@ -68,9 +68,9 @@ exports.handler = async (event, context) => {
         }
 
         // Acceder directamente al body de la solicitud
-        const body = event.body;  // El body ya está disponible, no lo parseamos
 
-        const activity_id = body.activity_id;
+
+        const { activity_id} = event.body;
 
         if (!activity_id) {
             return {
