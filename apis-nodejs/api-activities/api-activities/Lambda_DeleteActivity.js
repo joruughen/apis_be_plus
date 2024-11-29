@@ -12,12 +12,21 @@ const TOKENS_TABLE = `${process.env.STAGE}_t_access_tokens`;
 
 exports.handler = async (event, context) => {
     try {
+        // Obtener el activity_id de la URL
+        const activityId = event.pathParameters.activity_id;
+        if (!activityId) {
+            return {
+                statusCode: 400,
+                body: JSON.stringify({ error: 'Missing activity_id in the request path' })
+            };
+        }
+
         // Obtener el token de autorización desde los headers
         const token = event.headers['Authorization'];
         if (!token) {
             return {
                 statusCode: 400,
-                body: { error: 'Missing Authorization token' }
+                body: JSON.stringify({ error: 'Missing Authorization token' })
             };
         }
 
@@ -26,7 +35,7 @@ exports.handler = async (event, context) => {
         if (!validateFunctionName) {
             return {
                 statusCode: 500,
-                body: { error: 'ValidateAccessToken function not configured' }
+                body: JSON.stringify({ error: 'ValidateAccessToken function not configured' })
             };
         }
 
@@ -40,7 +49,7 @@ exports.handler = async (event, context) => {
         if (validatePayload.statusCode === 403) {
             return {
                 statusCode: 403,
-                body: { error: validatePayload.body || 'Unauthorized Access' }
+                body: JSON.stringify({ error: validatePayload.body || 'Unauthorized Access' })
             };
         }
 
@@ -53,7 +62,7 @@ exports.handler = async (event, context) => {
         if (!tokenItem.Item) {
             return {
                 statusCode: 500,
-                body: { error: 'Failed to retrieve tenant_id and student_id from token' }
+                body: JSON.stringify({ error: 'Failed to retrieve tenant_id and student_id from token' })
             };
         }
 
@@ -63,61 +72,39 @@ exports.handler = async (event, context) => {
         if (!tenantId || !studentId) {
             return {
                 statusCode: 500,
-                body: { error: 'Missing tenant_id or student_id in token' }
+                body: JSON.stringify({ error: 'Missing tenant_id or student_id in token' })
             };
         }
 
-        // Obtener el `activity_id` de los parámetros de la URL
-        const activityId = event.pathParameters.activity_id;
-
-        if (!activityId) {
-            return {
-                statusCode: 400,
-                body: { error: 'Missing activity_id in path parameters' }
-            };
-        }
-
-        // Verificar si la actividad existe
-        const activityParams = {
+        // Verificar si la actividad existe para este student_id y tenant_id
+        const activity = await docClient.send(new GetCommand({
             TableName: ACTIVITIES_TABLE,
             Key: { tenant_id: tenantId, activity_id: activityId, student_id: studentId }
-        };
+        }));
 
-        const existingActivity = await docClient.send(new GetCommand(activityParams));
-
-        if (!existingActivity.Item) {
+        if (!activity.Item) {
             return {
                 statusCode: 404,
-                body: { error: 'Activity not found' }
-            };
-        }
-
-        // Verificar si el student_id de la actividad coincide con el del token
-        if (existingActivity.Item.student_id !== studentId) {
-            return {
-                statusCode: 403,
-                body: { error: 'Unauthorized: student_id does not match' }
+                body: JSON.stringify({ error: 'Activity not found for this student_id and tenant_id' })
             };
         }
 
         // Eliminar la actividad
-        const deleteParams = {
+        await docClient.send(new DeleteCommand({
             TableName: ACTIVITIES_TABLE,
-            Key: { tenant_id: tenantId, activity_id: activityId}
-        };
-
-        await docClient.send(new DeleteCommand(deleteParams));
+            Key: { tenant_id: tenantId, activity_id: activityId, student_id: studentId }
+        }));
 
         return {
             statusCode: 200,
-            body: { message: 'Activity deleted successfully' }
+            body: JSON.stringify({ message: 'Activity deleted successfully' })
         };
 
     } catch (error) {
         console.error('Error occurred:', error);
         return {
             statusCode: 500,
-            body: { error: error.message }
+            body: JSON.stringify({ error: error.message })
         };
     }
 };
