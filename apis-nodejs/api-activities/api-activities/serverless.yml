@@ -1,0 +1,42 @@
+org: jorgemelgarejo
+service: api-activities
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: us-east-1
+  role: arn:aws:iam::232690452415:role/LabRole
+  stage: ${opt:stage, 'dev'}  # Permite establecer el stage desde la línea de comandos
+  environment:
+    ACTIVITIES_TABLE: ${self:custom.activitiesTable}  # Configura la tabla de actividades
+
+package:
+  individually: true  # Permite empaquetar las funciones individualmente
+
+functions:
+  Lambda_CreateActivity:
+    handler: Lambda_CreateActivity.handler  # Apunta al archivo y función correspondientes
+    memorySize: 512  # Memoria asignada para la función
+    timeout: 30  # Tiempo máximo de ejecución
+    environment:
+      ACTIVITIES_TABLE: ${self:custom.activitiesTable}  # Variable de entorno para la tabla
+      STAGE: ${self:provider.stage}  # Variable de entorno para el stage
+    events:
+      - http:
+          path: activities
+          method: post
+          integration: lambda
+          request:
+            template:
+              application/json: |
+                {
+                  "method": "$context.httpMethod",
+                  "path": "$context.path",
+                  "headers": {
+                    "Authorization": "$input.params('Authorization')"
+                  },
+                  "body": $input.body
+                }
+
+custom:
+  activitiesTable: ${self:provider.stage}_t_activities  # La tabla de actividades cambia según el stage
