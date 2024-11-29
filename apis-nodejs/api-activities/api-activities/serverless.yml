@@ -95,7 +95,8 @@ functions:
                   "path": "$context.path",
                   "headers": {
                     "Authorization": "$input.params('Authorization')"
-                  }
+                  },
+                  "body": $input.body
                 }
           response:
             headers:
@@ -122,7 +123,7 @@ functions:
                   "headers": {
                     "Authorization": "$input.params('Authorization')"
                   },
-                  "queryStringParameters": $input.params().querystring
+                  "body": $input.body
                 }
           response:
             headers:
