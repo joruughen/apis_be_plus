@@ -11,34 +11,21 @@ const docClient = DynamoDBDocumentClient.from(dynamoClient);
 const ACTIVITIES_TABLE = `${process.env.STAGE}_t_activities`;
 const TOKENS_TABLE = `${process.env.STAGE}_t_access_tokens`;
 
-exports.handler = async (event) => {
+exports.handler = async (event, context) => {
   try {
-    // Verificar si el cuerpo está presente
-    if (!event.body) {
+    // Imprime el cuerpo recibido antes de procesarlo para depuración
+    console.log("Received event body:", event.body);
+
+    // Accedemos directamente a las propiedades de event.body como objeto
+    const { activity_id, activitie_type, time } = event.body;
+
+    // Validar los parámetros requeridos
+    if (!activity_id || !activitie_type) {
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: 'Request body is missing' })
+        body: JSON.stringify({ error: 'Missing required parameters: activity_id or activitie_type' })
       };
     }
-
-    // Intentar parsear el cuerpo del evento
-    let body;
-    try {
-      console.log('Received event body:', event.body);
-      body = JSON.parse(event.body);  // Intentamos convertir el cuerpo en un objeto JSON
-      // Log del cuerpo del evento antes de intentar parsearlo
-
-
-    } catch (err) {
-      console.error('Error parsing JSON body:', err);  // Log para depuración
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Invalid JSON format in request body' })
-      };
-    }
-
-    // Log para depuración
-    console.log('Parsed body:', body);
 
     // Obtener el token de autorización desde los headers
     const token = event.headers['Authorization'];
@@ -92,23 +79,6 @@ exports.handler = async (event) => {
       return {
         statusCode: 500,
         body: JSON.stringify({ error: 'Missing tenant_id or student_id in token' })
-      };
-    }
-
-    // Validar los datos del body
-    const { activity_id, activitie_type, time } = body;
-
-    if (!activity_id) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Missing activity_id in request body' })
-      };
-    }
-
-    if (!activitie_type) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Missing activity_type in request body' })
       };
     }
 
