@@ -10,9 +10,13 @@ provider:
 
 package:
   individually: true
+  exclude:
+    - '**/*.ts'  # Excluir archivos TypeScript
+    - '**/*.map'  # Excluir archivos de mapa
+    - 'node_modules/**'  # Excluir node_modules
   include:
-    - dist/apis/**  # Incluir todos los archivos dentro de dist/apis/
-    - dist/utils/**  # Incluir todos los archivos dentro de dist/utils/
+    - dist/apis/**  # Incluir solo los archivos JavaScript generados
+    - dist/utils/**  # Incluir archivos necesarios de utils
 
 functions:
   CreateRockie:
@@ -50,53 +54,6 @@ functions:
       - http:
           path: rockies
           method: get
-          integration: lambda
-          request:
-            template:
-              application/json: |
-                {
-                  "method": "$context.httpMethod",
-                  "path": "$context.path",
-                  "headers": {
-                    "Authorization": "$input.params('Authorization')"
-                  }
-                }
-
-  UpdateRockie:
-    handler: dist/apis/updateRockie.handler  # Correcta ruta al archivo updateRockie.js en dist/apis/
-    memorySize: 512
-    timeout: 30
-    environment:
-      VALIDATE_FUNCTION_NAME: ${self:custom.validateTokenFunction}
-      STAGE: ${self:provider.stage}
-    events:
-      - http:
-          path: rockies
-          method: put
-          integration: lambda
-          request:
-            template:
-              application/json: |
-                {
-                  "method": "$context.httpMethod",
-                  "path": "$context.path",
-                  "headers": {
-                    "Authorization": "$input.params('Authorization')"
-                  },
-                  "body": $input.body
-                }
-
-  DeleteRockie:
-    handler: dist/apis/deleteRockie.handler  # Correcta ruta al archivo deleteRockie.js en dist/apis/
-    memorySize: 512
-    timeout: 30
-    environment:
-      VALIDATE_FUNCTION_NAME: ${self:custom.validateTokenFunction}
-      STAGE: ${self:provider.stage}
-    events:
-      - http:
-          path: rockies
-          method: delete
           integration: lambda
           request:
             template:
