@@ -1,9 +1,9 @@
 org: jorgemelgarejo
-service: api-activities
+service: api-rockiesjs
 
 provider:
   name: aws
-  runtime: nodejs22.x
+  runtime: nodejs18.x
   region: us-east-1
   role: arn:aws:iam::232690452415:role/LabRole
   stage: ${opt:stage, 'dev'}
@@ -12,17 +12,17 @@ package:
   individually: true
 
 functions:
-  CreateActivity:
-    handler: dist/createActivity.handler
+  CreateRockie:
+    handler: dist/createRockie.handler
     memorySize: 512
     timeout: 30
     environment:
       VALIDATE_FUNCTION_NAME: ${self:custom.validateTokenFunction}
-      TABLE_NAME: ${self:custom.tableName}
       STAGE: ${self:provider.stage}
+      TABLE_NAME: ${self:custom.tableName}
     events:
       - http:
-          path: activities
+          path: rockies
           method: post
           integration: lambda
           request:
@@ -37,17 +37,17 @@ functions:
                   "body": $input.body
                 }
 
-  GetActivities:
-    handler: dist/getActivities.handler
+  GetRockie:
+    handler: dist/getRockie.handler
     memorySize: 512
     timeout: 30
     environment:
       VALIDATE_FUNCTION_NAME: ${self:custom.validateTokenFunction}
-      TABLE_NAME: ${self:custom.tableName}
       STAGE: ${self:provider.stage}
+      TABLE_NAME: ${self:custom.tableName}
     events:
       - http:
-          path: activities
+          path: rockies
           method: get
           integration: lambda
           request:
@@ -61,17 +61,17 @@ functions:
                   }
                 }
 
-  UpdateActivity:
-    handler: dist/updateActivity.handler
+  UpdateRockie:
+    handler: dist/updateRockie.handler
     memorySize: 512
     timeout: 30
     environment:
       VALIDATE_FUNCTION_NAME: ${self:custom.validateTokenFunction}
-      TABLE_NAME: ${self:custom.tableName}
       STAGE: ${self:provider.stage}
+      TABLE_NAME: ${self:custom.tableName}
     events:
       - http:
-          path: activities
+          path: rockies
           method: put
           integration: lambda
           request:
@@ -86,17 +86,17 @@ functions:
                   "body": $input.body
                 }
 
-  DeleteActivity:
-    handler: dist/deleteActivity.handler
+  DeleteRockie:
+    handler: dist/deleteRockie.handler
     memorySize: 512
     timeout: 30
     environment:
       VALIDATE_FUNCTION_NAME: ${self:custom.validateTokenFunction}
-      TABLE_NAME: ${self:custom.tableName}
       STAGE: ${self:provider.stage}
+      TABLE_NAME: ${self:custom.tableName}
     events:
       - http:
-          path: activities
+          path: rockies
           method: delete
           integration: lambda
           request:
@@ -112,4 +112,7 @@ functions:
 
 custom:
   validateTokenFunction: api-security-${self:provider.stage}-ValidateAccessToken
-  tableName: dev_t_activities
+  tableName: ${self:provider.stage}_t_rockies
+
+plugins:
+  - serverless-plugin-typescript
