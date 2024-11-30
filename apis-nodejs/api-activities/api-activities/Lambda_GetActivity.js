@@ -1,4 +1,4 @@
-const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');  // Asegúrate de importar InvokeCommand
+const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');  // Asegúrate de importar InvokeCommand correctamente
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, QueryCommand } = require('@aws-sdk/lib-dynamodb');
 
@@ -74,11 +74,19 @@ exports.handler = async (event, context) => {
         const filterKeys = Object.keys(body).filter(key => key !== 'limit' && key !== 'lastEvaluatedKey');
         let filterExpression = [];
         let expressionAttributeValues = {};
+        let indexName = null;
 
         // Construir la expresión de filtro dinámicamente
         filterKeys.forEach(key => {
             filterExpression.push(`${key} = :${key}`);
             expressionAttributeValues[`:${key}`] = body[key];
+
+            // Determinar el índice a utilizar
+            if (key === 'student_id') {
+                indexName = 'student_id_index';  // Usar el índice de `student_id`
+            } else if (key === 'activity_type') {
+                indexName = 'activity_type_index';  // Usar el índice de `activity_type`
+            }
         });
 
         // Definir los parámetros de la consulta
@@ -89,6 +97,11 @@ exports.handler = async (event, context) => {
             Limit: parseInt(limit),  // Limitar la cantidad de elementos retornados
             ExclusiveStartKey: lastEvaluatedKey ? JSON.parse(lastEvaluatedKey) : undefined, // Paginación
         };
+
+        // Si se definió un índice secundario, utilizarlo
+        if (indexName) {
+            params.IndexName = indexName;
+        }
 
         // Ejecutar la consulta
         const data = await docClient.send(new QueryCommand(params));
