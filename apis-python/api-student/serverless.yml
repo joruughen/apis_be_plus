@@ -24,11 +24,6 @@ functions:
           path: students
           method: post
           integration: lambda
-          cors: true  # Habilitar CORS
-          authorizer:  # Usar la función Lambda para validar el token
-            arn: arn:aws:lambda:${self:provider.region}:232690452415:function:${self:custom.validateTokenFunction}
-            resultTtlInSeconds: 300
-            identitySource: "method.request.header.Authorization"
           request:
             template:
               application/json: |
@@ -53,11 +48,6 @@ functions:
           path: students
           method: get
           integration: lambda
-          cors: true  # Habilitar CORS
-          authorizer:  # Usar la función Lambda para validar el token
-            arn: arn:aws:lambda:${self:provider.region}:232690452415:function:${self:custom.validateTokenFunction}
-            resultTtlInSeconds: 300
-            identitySource: "method.request.header.Authorization"
           request:
             template:
               application/json: |
@@ -81,11 +71,6 @@ functions:
           path: students
           method: put
           integration: lambda
-          cors: true  # Habilitar CORS
-          authorizer:  # Usar la función Lambda para validar el token
-            arn: arn:aws:lambda:${self:provider.region}:232690452415:function:${self:custom.validateTokenFunction}
-            resultTtlInSeconds: 300
-            identitySource: "method.request.header.Authorization"
           request:
             template:
               application/json: |
@@ -110,11 +95,6 @@ functions:
           path: students
           method: delete
           integration: lambda
-          cors: true  # Habilitar CORS
-          authorizer:  # Usar la función Lambda para validar el token
-            arn: arn:aws:lambda:${self:provider.region}:232690452415:function:${self:custom.validateTokenFunction}
-            resultTtlInSeconds: 300
-            identitySource: "method.request.header.Authorization"
           request:
             template:
               application/json: |
