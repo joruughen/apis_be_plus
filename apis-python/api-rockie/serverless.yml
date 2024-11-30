@@ -1,5 +1,5 @@
 org: jorgemelgarejo
-service: api-rockies
+service: api-rockie
 
 provider:
   name: aws
@@ -13,7 +13,7 @@ package:
 
 functions:
   CreateRockie:
-    handler: Lambda_CreateRockie.lambda_handler
+    handler: Lambda_Create_Rockie.lambda_handler
     memorySize: 512
     timeout: 30
     environment:
@@ -21,9 +21,14 @@ functions:
       STAGE: ${self:provider.stage}
     events:
       - http:
-          path: rockies
+          path: rockie
           method: post
           integration: lambda
+          cors: true  # Habilitar CORS
+          authorizer:  # Usar la función Lambda para validar el token
+            arn: arn:aws:lambda:${self:provider.region}:232690452415:function:${self:custom.validateTokenFunction}
+            resultTtlInSeconds: 300
+            identitySource: "method.request.header.Authorization"
           request:
             template:
               application/json: |
@@ -45,9 +50,14 @@ functions:
       STAGE: ${self:provider.stage}
     events:
       - http:
-          path: rockies
+          path: rockie
           method: get
           integration: lambda
+          cors: true  # Habilitar CORS
+          authorizer:  # Usar la función Lambda para validar el token
+            arn: arn:aws:lambda:${self:provider.region}:232690452415:function:${self:custom.validateTokenFunction}
+            resultTtlInSeconds: 300
+            identitySource: "method.request.header.Authorization"
           request:
             template:
               application/json: |
@@ -68,9 +78,14 @@ functions:
       STAGE: ${self:provider.stage}
     events:
       - http:
-          path: rockies
+          path: rockie
           method: put
           integration: lambda
+          cors: true  # Habilitar CORS
+          authorizer:  # Usar la función Lambda para validar el token
+            arn: arn:aws:lambda:${self:provider.region}:232690452415:function:${self:custom.validateTokenFunction}
+            resultTtlInSeconds: 300
+            identitySource: "method.request.header.Authorization"
           request:
             template:
               application/json: |
@@ -92,9 +107,14 @@ functions:
       STAGE: ${self:provider.stage}
     events:
       - http:
-          path: rockies
+          path: rockie
           method: delete
           integration: lambda
+          cors: true  # Habilitar CORS
+          authorizer:  # Usar la función Lambda para validar el token
+            arn: arn:aws:lambda:${self:provider.region}:232690452415:function:${self:custom.validateTokenFunction}
+            resultTtlInSeconds: 300
+            identitySource: "method.request.header.Authorization"
           request:
             template:
               application/json: |
@@ -108,4 +128,3 @@ functions:
 
 custom:
   validateTokenFunction: api-security-${self:provider.stage}-ValidateAccessToken
-
