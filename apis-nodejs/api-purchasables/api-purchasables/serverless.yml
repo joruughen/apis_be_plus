@@ -1,0 +1,134 @@
+org: jorgemelgarejo
+service: api-purchasables
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: us-east-1
+  role: arn:aws:iam::232690452415:role/LabRole  # Replace with your IAM role
+  stage: ${opt:stage, 'dev'}  # Set default stage to 'dev'
+  environment:
+    PURCHASABLES_TABLE: ${self:custom.purchasablesTable}  # Table for purchasable items
+    VALIDATE_FUNCTION_NAME: ${self:custom.validateTokenFunction}  # Token validation Lambda function
+
+package:
+  individually: true  # Enable individual packaging of Lambda functions
+  include:
+    - node_modules/**
+    - Lambda_CreateItem.js
+    - Lambda_UpdateItem.js
+    - Lambda_DeleteItem.js
+    - Lambda_GetItem.js
+
+functions:
+  Lambda_CreateItem:
+    handler: Lambda_CreateItem.handler
+    memorySize: 512
+    timeout: 30
+    environment:
+      PURCHASABLES_TABLE: ${self:custom.purchasablesTable}
+      STAGE: ${self:provider.stage}
+    events:
+      - http:
+          path: items
+          method: post
+          integration: lambda
+          request:
+            template:
+              application/json: |
+                {
+                  "method": "$context.httpMethod",
+                  "path": "$context.path",
+                  "headers": {
+                    "Authorization": "$input.params('Authorization')"
+                  },
+                  "body": $input.body
+                }
+          response:
+            headers:
+              Content-Type: "'application/json'"
+
+  Lambda_UpdateItem:
+    handler: Lambda_UpdateItem.handler
+    memorySize: 512
+    timeout: 30
+    environment:
+      PURCHASABLES_TABLE: ${self:custom.purchasablesTable}
+      STAGE: ${self:provider.stage}
+    events:
+      - http:
+          path: items/{id}
+          method: put
+          integration: lambda
+          request:
+            template:
+              application/json: |
+                {
+                  "method": "$context.httpMethod",
+                  "path": "$context.path",
+                  "headers": {
+                    "Authorization": "$input.params('Authorization')"
+                  },
+                  "body": $input.body
+                }
+          response:
+            headers:
+              Content-Type: "'application/json'"
+
+  Lambda_DeleteItem:
+    handler: Lambda_DeleteItem.handler
+    memorySize: 512
+    timeout: 30
+    environment:
+      PURCHASABLES_TABLE: ${self:custom.purchasablesTable}
+      STAGE: ${self:provider.stage}
+    events:
+      - http:
+          path: items/{id}
+          method: delete
+          integration: lambda
+          request:
+            template:
+              application/json: |
+                {
+                  "method": "$context.httpMethod",
+                  "path": "$context.path",
+                  "headers": {
+                    "Authorization": "$input.params('Authorization')"
+                  },
+                  "body": $input.body
+                }
+          response:
+            headers:
+              Content-Type: "'application/json'"
+
+  Lambda_GetItem:
+    handler: Lambda_GetItem.handler
+    memorySize: 512
+    timeout: 30
+    environment:
+      PURCHASABLES_TABLE: ${self:custom.purchasablesTable}
+      STAGE: ${self:provider.stage}
+    events:
+      - http:
+          path: items/{id}
+          method: get
+          integration: lambda
+          request:
+            template:
+              application/json: |
+                {
+                  "method": "$context.httpMethod",
+                  "path": "$context.path",
+                  "headers": {
+                    "Authorization": "$input.params('Authorization')"
+                  },
+                  "body": $input.body
+                }
+          response:
+            headers:
+              Content-Type: "'application/json'"
+
+custom:
+  purchasablesTable: ${self:provider.stage}_t_purchasables  # Dynamically set the table name based on stage
+  validateTokenFunction: api-security-${self:provider.stage}-ValidateAccessToken  # Lambda function for validating the token
