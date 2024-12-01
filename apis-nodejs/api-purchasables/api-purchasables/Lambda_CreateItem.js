@@ -1,4 +1,3 @@
-
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, PutCommand } = require('@aws-sdk/lib-dynamodb');
 const { v4: uuidv4 } = require('uuid');
@@ -32,6 +31,13 @@ exports.handler = async (event) => {
         createdAt: new Date().toISOString(),
     };
 
+    // Add custom fields dynamically from the body to the item
+    Object.keys(body).forEach((key) => {
+        if (key !== 'name' && key !== 'price' && key !== 'stock') {
+            item[key] = body[key];  // Add custom fields to the item object
+        }
+    });
+
     const params = {
         TableName: tableName,
         Item: item,
@@ -60,4 +66,5 @@ exports.handler = async (event) => {
         };
     }
 };
+
 
