@@ -34,7 +34,7 @@ exports.handler = async (event) => {
             };
         }
 
-        // Fetch Item
+        // Fetch Item (now with additional dynamic fields like tenant_id, activity_data, etc.)
         const itemParams = {
             TableName: `${stage}_purchasables`,
             Key: { id: itemId },
@@ -63,6 +63,10 @@ exports.handler = async (event) => {
             };
         }
 
+        // Log the details of the purchase request
+        console.log('Processing purchase for account:', accountId);
+        console.log('Item being purchased:', JSON.stringify(item, null, 2));
+
         // Deduct Price from Account Balance
         const updatedBalance = account.balance - item.price;
         const updateAccountParams = {
@@ -75,7 +79,7 @@ exports.handler = async (event) => {
         };
         await docClient.send(new UpdateCommand(updateAccountParams));
 
-        // Reduce Stock
+        // Reduce Stock of the Item
         const updatedStock = item.stock - 1;
         const updateItemParams = {
             TableName: `${stage}_purchasables`,
@@ -94,7 +98,14 @@ exports.handler = async (event) => {
             itemId,
             amount: item.price,
             timestamp: new Date().toISOString(),
+            tenant_id: item.tenant_id,       // Add tenant_id from item
+            activity_id: item.activity_id,   // Add activity_id from item (if relevant)
+            activity_data: item.activity_data, // Add activity_data from item (if relevant)
         };
+
+        // Log the transaction details for debugging
+        console.log('Transaction details:', JSON.stringify(transaction, null, 2));
+
         const transactionParams = {
             TableName: `${stage}_transactions`,
             Item: transaction,
@@ -113,3 +124,4 @@ exports.handler = async (event) => {
         };
     }
 };
+
