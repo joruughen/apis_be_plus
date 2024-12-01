@@ -1,30 +1,38 @@
+const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, GetCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb');
-const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
 
+const lambdaClient = new LambdaClient({});
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
-const lambdaClient = new LambdaClient({});
 
-const ACTIVITIES_TABLE = `${process.env.STAGE}_t_activities`;
+const ACTIVITIES_TABLE = process.env.ACTIVITIES_TABLE;
+const TOKENS_TABLE = `${process.env.STAGE}_t_access_tokens`;
 const VALIDATE_FUNCTION_NAME = process.env.VALIDATE_FUNCTION_NAME;
 
 exports.handler = async (event) => {
-    try {
-        console.log("Received event:", JSON.stringify(event));
+    console.log('Event received:', event);
 
-        // Validate Authorization token
+    try {
         const token = event.headers['Authorization'];
         if (!token) {
             return {
                 statusCode: 400,
-                body: JSON.stringify({ error: 'Missing Authorization token' })
+                body: { error: 'Missing Authorization token' }
             };
         }
 
-        console.log("Validating token...");
+        // Validar el token usando la función Lambda ValidateAccessToken
+        const validateFunctionName = process.env.VALIDATE_FUNCTION_NAME;
+        if (!validateFunctionName) {
+            return {
+                statusCode: 500,
+                body: { error: 'ValidateAccessToken function not configured' }
+            };
+        }
+
         const validateResponse = await lambdaClient.send(new InvokeCommand({
-            FunctionName: VALIDATE_FUNCTION_NAME,
+            FunctionName: validateFunctionName,
             InvocationType: 'RequestResponse',
             Payload: JSON.stringify({ token })
         }));
@@ -33,90 +41,88 @@ exports.handler = async (event) => {
         if (validatePayload.statusCode === 403) {
             return {
                 statusCode: 403,
-                body: JSON.stringify({ error: 'Unauthorized Access' })
+                body: { error: validatePayload.body || 'Unauthorized Access' }
             };
         }
 
-        const { tenant_id, student_id } = validatePayload.body; // Extraer tenant_id y student_id del token
-        console.log("Token validated successfully. Tenant ID:", tenant_id, "Student ID:", student_id);
+        // Recuperar tenant_id y student_id desde el token (puedes extraerlos aquí si son parte de la validación)
+        const tokenItem = await docClient.send(new GetCommand({
+            TableName: TOKENS_TABLE,
+            Key: { token },
+        }));
 
-        // Parse query parameters
-        const { queryType, activity_id, activity_type, limit = 10, lastEvaluatedKey } = event.queryStringParameters || {};
-
-        if (!queryType) {
+        if (!tokenItem.Item) {
             return {
-                statusCode: 400,
-                body: JSON.stringify({ error: 'queryType is required' })
+                statusCode: 403,
+                body: { error: 'Invalid or expired token' }
             };
         }
 
-        let params = {
-            TableName: ACTIVITIES_TABLE,
-            Limit: parseInt(limit),
-            ExclusiveStartKey: lastEvaluatedKey ? JSON.parse(lastEvaluatedKey) : undefined,
+        // Extraer queryStringParameters
+        const query = event.query || {};  // Asumimos que el query ya está parseado en el yml
+        const { method, limit ,lastEvaluatedKey, activity_type} = query;
+
+        // Validar el método, si no existe uno, poner un valor predeterminado (ej. "primaryKey")
+        const queryMethod = method || 'primaryKey';  // Si no hay método, usar primaryKey por defecto
+        const queryLimit = limit ? parseInt(limit, 10) : 10;  // Poner un límite predeterminado si no existe
+        console.log(`Query parameters: method=${queryMethod}, limit=${queryLimit}, lastEvaluatedKey=${lastEvaluatedKey}`);
+
+        // Ejecutar la consulta en DynamoDB según el método
+        let result;
+
+        if (queryMethod === 'gsi') {
+            // Ejecutar la consulta con GSI (usando 'student_id_index' para listar todas las actividades de un student_id)
+            result = await docClient.send(new QueryCommand({
+                TableName: ACTIVITIES_TABLE,
+                IndexName: 'student_id_index',  // Nombre del GSI
+                KeyConditionExpression: 'student_id = :studentId',  // Solo filtramos por student_id
+                ExpressionAttributeValues: {
+                    ':studentId': tokenItem.Item.student_id  // Usamos el student_id del token
+                },
+                Limit: queryLimit,
+                ExclusiveStartKey: lastEvaluatedKey ? JSON.parse(lastEvaluatedKey) : undefined,
+            }));
+        } else if (queryMethod === 'lsi') {
+            // Ejecutar la consulta con LSI (usando 'activity_type_index')
+            result = await docClient.send(new QueryCommand({
+                TableName: ACTIVITIES_TABLE,
+                IndexName: 'activity_type_index',  // Nombre del LSI
+                KeyConditionExpression: 'tenant_id = :tenantId and activity_type = :activityType',  // Filtramos por tenant_id y activity_type
+                ExpressionAttributeValues: {
+                    ':tenantId': tokenItem.Item.tenant_id,
+                    ':activityType': activity_type
+                },
+                Limit: queryLimit,
+                ExclusiveStartKey: lastEvaluatedKey ? JSON.parse(lastEvaluatedKey) : undefined,
+            }));
+        } else {
+            // Ejecutar la consulta por Primary Key (usando 'tenant_id' y 'activity_id')
+            result = await docClient.send(new QueryCommand({
+                TableName: ACTIVITIES_TABLE,
+                KeyConditionExpression: 'tenant_id = :tenantId',  // Filtramos por tenant_id y activity_id
+                ExpressionAttributeValues: {
+                    ':tenantId': tokenItem.Item.tenant_id
+                },
+                Limit: queryLimit,
+                ExclusiveStartKey: lastEvaluatedKey ? JSON.parse(lastEvaluatedKey) : undefined,
+            }));
+        }
+
+
+        // Devolver la respuesta con los resultados obtenidos
+        return {
+            statusCode: 200,
+            body: {
+                items: result.Items,
+                lastEvaluatedKey: result.LastEvaluatedKey ? JSON.stringify(result.LastEvaluatedKey) : null
+            }
         };
 
-        switch (queryType) {
-            case 'PRIMARY_KEY':
-                if (!activity_id) {
-                    return {
-                        statusCode: 400,
-                        body: JSON.stringify({ error: 'activity_id is required for PRIMARY_KEY query' })
-                    };
-                }
-                params.Key = { tenant_id, activity_id };
-                const getResult = await docClient.send(new GetCommand(params));
-                return {
-                    statusCode: 200,
-                    body: JSON.stringify({ item: getResult.Item })
-                };
-
-            case 'GSI':
-                params.IndexName = 'student_id_index';
-                params.KeyConditionExpression = 'student_id = :student_id';
-                params.ExpressionAttributeValues = { ':student_id': student_id };
-                const gsiResult = await docClient.send(new QueryCommand(params));
-                return {
-                    statusCode: 200,
-                    body: JSON.stringify({
-                        items: gsiResult.Items,
-                        lastEvaluatedKey: gsiResult.LastEvaluatedKey
-                    })
-                };
-
-            case 'LSI':
-                if (!activity_type) {
-                    return {
-                        statusCode: 400,
-                        body: JSON.stringify({ error: 'activity_type is required for LSI query' })
-                    };
-                }
-                params.IndexName = 'activity_type_index';
-                params.KeyConditionExpression = 'tenant_id = :tenant_id AND activity_type = :activity_type';
-                params.ExpressionAttributeValues = {
-                    ':tenant_id': tenant_id,
-                    ':activity_type': activity_type
-                };
-                const lsiResult = await docClient.send(new QueryCommand(params));
-                return {
-                    statusCode: 200,
-                    body: JSON.stringify({
-                        items: lsiResult.Items,
-                        lastEvaluatedKey: lsiResult.LastEvaluatedKey
-                    })
-                };
-
-            default:
-                return {
-                    statusCode: 400,
-                    body: JSON.stringify({ error: 'Invalid queryType' })
-                };
-        }
     } catch (error) {
-        console.error("Error occurred:", error);
+        console.error('Error processing request:', error);
         return {
             statusCode: 500,
-            body: JSON.stringify({ error: 'Internal Server Error' })
+            body: { error: 'Internal Server Error' }
         };
     }
 };

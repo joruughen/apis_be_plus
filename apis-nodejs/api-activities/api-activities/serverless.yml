@@ -103,7 +103,7 @@ functions:
               Content-Type: "'application/json'"
 
   Lambda_GetActivity:
-    handler: Lambda_GetActivity.handler  # Apunta al archivo de la función de obtención
+    handler: Lambda_GetActivity.handler  # Asegúrate de que apunte a tu handler
     memorySize: 512
     timeout: 30
     environment:
@@ -111,23 +111,17 @@ functions:
       STAGE: ${self:provider.stage}
     events:
       - http:
-          path: activities/  # La ruta para obtener actividades
+          path: activities
           method: get
           integration: lambda
           request:
-            template:
-              application/json: |
-                {
-                  "method": "$context.httpMethod",
-                  "path": "$context.path",
-                  "headers": {
-                    "Authorization": "$input.params('Authorization')"
-                  },
-                  "body": $input.body
-                }
-          response:
-            headers:
-              Content-Type: "'application/json'"
+            parameters:
+              querystrings:
+                method: true  # Espera un parámetro 'method' en la URL
+                limit: true  # Espera un parámetro 'limit' en la URL
+                lastEvaluatedKey: false  # Este es opcional, no es obligatorio
+
+
 
 custom:
   activitiesTable: ${self:provider.stage}_t_activities  # La tabla de actividades cambia según el stage
