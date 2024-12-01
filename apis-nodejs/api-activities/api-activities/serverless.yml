@@ -111,7 +111,7 @@ functions:
       STAGE: ${self:provider.stage}
     events:
       - http:
-          path: activities  # La ruta para obtener actividades
+          path: activities/  # La ruta para obtener actividades
           method: get
           integration: lambda
           request:
