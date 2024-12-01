@@ -5,32 +5,32 @@ provider:
   name: aws
   runtime: nodejs20.x
   region: us-east-1
-  role: arn:aws:iam::232690452415:role/LabRole  # Replace with your IAM role
-  stage: ${opt:stage, 'dev'}  # Set default stage to 'dev'
+  role: arn:aws:iam::767397712076:role/LabRole
+  stage: ${opt:stage, 'dev'}  # Permite establecer el stage desde la línea de comandos
   environment:
-    PURCHASABLES_TABLE: ${self:custom.purchasablesTable}  # Table for purchasable items
-    VALIDATE_FUNCTION_NAME: ${self:custom.validateTokenFunction}  # Token validation Lambda function
+    PURCHASABLES_TABLE: ${self:custom.purchasablesTable}  # Configura la tabla de purchasables
+    VALIDATE_FUNCTION_NAME: ${self:custom.validateTokenFunction}
 
 package:
-  individually: true  # Enable individual packaging of Lambda functions
+  individually: true  # Permite empaquetar las funciones individualmente
   include:
-    - node_modules/**
-    - Lambda_CreateItem.js
-    - Lambda_UpdateItem.js
-    - Lambda_DeleteItem.js
-    - Lambda_GetItem.js
+    - node_modules/**  # Asegúrate de incluir node_modules
+    - Lambda_CreatePurchasable.js  # Asegúrate de incluir tu código también
+    - Lambda_UpdatePurchasable.js  # Agrega la función de actualización
+    - Lambda_DeletePurchasable.js  # Agrega la función de eliminación
+    - Lambda_GetPurchasable.js  # Agrega la función de obtención
 
 functions:
-  Lambda_CreateItem:
-    handler: Lambda_CreateItem.handler
-    memorySize: 512
-    timeout: 30
+  Lambda_CreatePurchasable:
+    handler: Lambda_CreatePurchasable.handler  # Apunta al archivo y función correspondientes
+    memorySize: 512  # Memoria asignada para la función
+    timeout: 30  # Tiempo máximo de ejecución
     environment:
-      PURCHASABLES_TABLE: ${self:custom.purchasablesTable}
-      STAGE: ${self:provider.stage}
+      PURCHASABLES_TABLE: ${self:custom.purchasablesTable}  # Variable de entorno para la tabla
+      STAGE: ${self:provider.stage}  # Variable de entorno para el stage
     events:
       - http:
-          path: items
+          path: purchasables
           method: post
           integration: lambda
           request:
@@ -46,10 +46,10 @@ functions:
                 }
           response:
             headers:
-              Content-Type: "'application/json'"
+              Content-Type: "'application/json'"  # Garantizar que la respuesta sea de tipo JSON
 
-  Lambda_UpdateItem:
-    handler: Lambda_UpdateItem.handler
+  Lambda_UpdatePurchasable:
+    handler: Lambda_UpdatePurchasable.handler  # Apunta al archivo de la función de actualización
     memorySize: 512
     timeout: 30
     environment:
@@ -57,7 +57,7 @@ functions:
       STAGE: ${self:provider.stage}
     events:
       - http:
-          path: items/{id}
+          path: purchasables/  # Define el parámetro en la URL
           method: put
           integration: lambda
           request:
@@ -75,8 +75,8 @@ functions:
             headers:
               Content-Type: "'application/json'"
 
-  Lambda_DeleteItem:
-    handler: Lambda_DeleteItem.handler
+  Lambda_DeletePurchasable:
+    handler: Lambda_DeletePurchasable.handler  # Apunta al archivo de la función de eliminación
     memorySize: 512
     timeout: 30
     environment:
@@ -84,7 +84,7 @@ functions:
       STAGE: ${self:provider.stage}
     events:
       - http:
-          path: items/{id}
+          path: purchasables/  # Define el parámetro en la URL
           method: delete
           integration: lambda
           request:
@@ -102,8 +102,8 @@ functions:
             headers:
               Content-Type: "'application/json'"
 
-  Lambda_GetItem:
-    handler: Lambda_GetItem.handler
+  Lambda_GetPurchasable:
+    handler: Lambda_GetPurchasable.handler  # Asegúrate de que apunte a tu handler
     memorySize: 512
     timeout: 30
     environment:
@@ -111,24 +111,16 @@ functions:
       STAGE: ${self:provider.stage}
     events:
       - http:
-          path: items/{id}
+          path: purchasables
           method: get
           integration: lambda
           request:
-            template:
-              application/json: |
-                {
-                  "method": "$context.httpMethod",
-                  "path": "$context.path",
-                  "headers": {
-                    "Authorization": "$input.params('Authorization')"
-                  },
-                  "body": $input.body
-                }
-          response:
-            headers:
-              Content-Type: "'application/json'"
+            parameters:
+              querystrings:
+                method: true  # Espera un parámetro 'method' en la URL
+                limit: true  # Espera un parámetro 'limit' en la URL
+                lastEvaluatedKey: false  # Este es opcional, no es obligatorio
 
 custom:
-  purchasablesTable: ${self:provider.stage}_t_purchasables  # Dynamically set the table name based on stage
-  validateTokenFunction: api-security-${self:provider.stage}-ValidateAccessToken  # Lambda function for validating the token
+  purchasablesTable: ${self:provider.stage}_t_purchasable  # La tabla de purchasables cambia según el stage
+  validateTokenFunction: api-security-${self:provider.stage}-ValidateAccessToken

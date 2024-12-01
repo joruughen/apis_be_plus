@@ -5,7 +5,7 @@ provider:
   name: aws
   runtime: python3.12
   region: us-east-1
-  role: arn:aws:iam::232690452415:role/LabRole
+  role: arn:aws:iam::767397712076:role/LabRole
   stage: ${opt:stage, 'dev'}
 
 package:
