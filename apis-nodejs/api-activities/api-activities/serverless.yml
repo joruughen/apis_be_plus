@@ -16,9 +16,9 @@ package:
   include:
     - node_modules/**  # Asegúrate de incluir node_modules
     - Lambda_CreateActivity.js  # Asegúrate de incluir tu código también
-    - Lambda_UpdateActivity.js  # Agrega la función de actualización
+    - Lambda_UpdateItem.js  # Agrega la función de actualización
     - Lambda_DeleteActivity.js  # Agrega la función de eliminación
-    - Lambda_GetActivity.js  # Agrega la función de obtención
+    - Lambda_GetItem.js  # Agrega la función de obtención
 
 functions:
   Lambda_CreateActivity:
