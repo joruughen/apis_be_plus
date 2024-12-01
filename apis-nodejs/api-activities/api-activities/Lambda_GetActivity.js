@@ -60,7 +60,7 @@ exports.handler = async (event) => {
 
         // Extraer queryStringParameters
         const query = event.query || {};  // Asumimos que el query ya está parseado en el yml
-        const { method, limit ,lastEvaluatedKey, activity_type} = query;
+        const { method, limit ,lastEvaluatedKey, activity_type, activity_id} = query;
 
         // Validar el método, si no existe uno, poner un valor predeterminado (ej. "primaryKey")
         const queryMethod = method || 'primaryKey';  // Si no hay método, usar primaryKey por defecto
@@ -71,14 +71,26 @@ exports.handler = async (event) => {
         let result;
 
         if (queryMethod === 'gsi') {
-            // Ejecutar la consulta con GSI (usando 'student_id_index' para listar todas las actividades de un student_id)
+            // Verificar si se proporciona activity_id
+            const keyConditions = activity_id
+                ? 'student_id = :studentId AND activity_id = :activityId'
+                : 'student_id = :studentId';
+
+            const expressionAttributeValues = activity_id
+                ? {
+                    ':studentId': tokenItem.Item.student_id,
+                    ':activityId': activity_id
+                }
+                : {
+                    ':studentId': tokenItem.Item.student_id
+                };
+
+            // Ejecutar la consulta con GSI (usando 'student_id_index')
             result = await docClient.send(new QueryCommand({
                 TableName: ACTIVITIES_TABLE,
                 IndexName: 'student_id_index',  // Nombre del GSI
-                KeyConditionExpression: 'student_id = :studentId',  // Solo filtramos por student_id
-                ExpressionAttributeValues: {
-                    ':studentId': tokenItem.Item.student_id  // Usamos el student_id del token
-                },
+                KeyConditionExpression: keyConditions,
+                ExpressionAttributeValues: expressionAttributeValues,
                 Limit: queryLimit,
                 ExclusiveStartKey: lastEvaluatedKey ? JSON.parse(lastEvaluatedKey) : undefined,
             }));
@@ -107,6 +119,7 @@ exports.handler = async (event) => {
                 ExclusiveStartKey: lastEvaluatedKey ? JSON.parse(lastEvaluatedKey) : undefined,
             }));
         }
+
 
 
         // Devolver la respuesta con los resultados obtenidos
