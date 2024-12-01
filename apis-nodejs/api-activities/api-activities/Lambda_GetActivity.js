@@ -109,6 +109,7 @@ exports.handler = async (event) => {
         }
 
 
+
         // Devolver la respuesta con los resultados obtenidos
         return {
             statusCode: 200,
