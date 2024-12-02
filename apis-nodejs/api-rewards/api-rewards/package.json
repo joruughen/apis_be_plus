@@ -1,0 +1,12 @@
+{
+  "name": "api-purchasables",
+  "version": "1.0.0",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.585.0",
+    "@aws-sdk/client-lambda": "^3.585.0",
+    "@aws-sdk/lib-dynamodb": "^3.585.0",
+    "moment": "^2.29.1",
+    "uuid": "^11.0.3"
+  }
+}
+
