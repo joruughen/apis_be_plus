@@ -63,39 +63,71 @@ exports.handler = async (event) => {
         const query = event.query || {};  // Assuming query is parsed correctly
         const { method, limit, lastEvaluatedKey, store_type, product_id, price } = query;
 
-        // Default method is 'primaryKey' if not provided, and set a limit for pagination
+// Default method is 'primaryKey' if not provided, and set a limit for pagination
         const queryMethod = method || 'primaryKey';
         const queryLimit = limit ? parseInt(limit, 10) : 10;
         console.log(`Query parameters: method=${queryMethod}, limit=${queryLimit}, lastEvaluatedKey=${lastEvaluatedKey}`);
 
-        // Step 4: Execute the query based on the selected method (GSI, LSI, or Primary Key)
+// Step 4: Execute the query based on the selected method (GSI, LSI, or Primary Key)
         let result;
 
         if (queryMethod === 'gsi') {
-            // If store_type is provided, filter by it and product_id
-            const keyConditions = product_id
-                ? 'store_type = :storeType AND product_id = :productId'
-                : 'store_type = :storeType';
+            let keyConditionExpression = 'tenant_id = :tenantId';  // Default to filtering by tenant_id only
+            let expressionAttributeValues = {
+                ':tenantId': tokenItem.Item.tenant_id  // Usamos el tenant_id extraído del token
+            };
 
-            const expressionAttributeValues = product_id
-                ? {
-                    ':storeType': store_type,
-                    ':productId': product_id
+            // Si product_id es proporcionado, agregamos a la condición de la clave
+            if (product_id) {
+                keyConditionExpression += ' AND product_id = :productId';
+                expressionAttributeValues[':productId'] = product_id;
+            }
+
+            let allItems = []; // Para almacenar todos los items encontrados que cumplen con el filtro
+            let lastEvaluatedKey = null; // Para paginar los resultados
+            let result; // Variable para almacenar los resultados de cada consulta
+            let fetchedItemsCount = 0; // Contador de items encontrados que cumplen con store_type
+            const queryLimit = 10; // Queremos obtener un máximo de 10 resultados
+            const storeType = store_type; // Para referirnos al store_type que buscamos
+
+            // Mientras no tengamos 10 items y tengamos más resultados disponibles en la siguiente página
+            while (fetchedItemsCount < queryLimit) {
+                // Ejecutamos la consulta
+                result = await docClient.send(new QueryCommand({
+                    TableName: PURCHASABLES_TABLE,
+                    KeyConditionExpression: keyConditionExpression,  // Filtros por tenant_id y product_id
+                    ExpressionAttributeValues: expressionAttributeValues,
+                    Limit: queryLimit - fetchedItemsCount,  // Limitar los resultados restantes (por paginación)
+                    ExclusiveStartKey: lastEvaluatedKey ? JSON.parse(lastEvaluatedKey) : undefined, // Paginar si es necesario
+                }));
+
+                // Filtrar los items que cumplen con el store_type
+                let filteredItems = result.Items.filter(item => item.store_type === storeType);
+
+                // Agregar los items filtrados al array de resultados
+                allItems = allItems.concat(filteredItems);
+                fetchedItemsCount = allItems.length;  // Actualizar el contador de items encontrados
+
+                // Si no encontramos suficientes resultados, actualizamos lastEvaluatedKey para seguir consultando
+                if (result.LastEvaluatedKey) {
+                    lastEvaluatedKey = JSON.stringify(result.LastEvaluatedKey);  // Preparar para la siguiente consulta
+                } else {
+                    // Si no hay más datos, terminamos
+                    break;
                 }
-                : {
-                    ':storeType': store_type
-                };
+            }
 
-            // Execute the query using GSI (store_type_index)
-            result = await docClient.send(new QueryCommand({
-                TableName: PURCHASABLES_TABLE,
-                IndexName: 'store_type_index_2',  // Using the GSI
-                KeyConditionExpression: keyConditions,
-                ExpressionAttributeValues: expressionAttributeValues,
-                Limit: queryLimit,
-                ExclusiveStartKey: lastEvaluatedKey ? JSON.parse(lastEvaluatedKey) : undefined,
-            }));
-        } else if (queryMethod === 'lsi') {
+            // Ahora 'allItems' tiene los primeros 10 elementos que cumplen con el store_type
+            result.Items = allItems.slice(0, 10); // Asegurarse de devolver solo 10 items
+            console.log('Filtered result:', result.Items);
+        }
+
+
+
+
+
+
+        else if (queryMethod === 'lsi') {
             // If price is provided, filter by it
             const expressionAttributeValues = {
                 ':tenantId': tokenItem.Item.tenant_id,
@@ -113,26 +145,36 @@ exports.handler = async (event) => {
             }));
         } else {
             // Execute the query by Primary Key (tenant_id + product_id)
+            let keyConditionExpression = 'tenant_id = :tenantId';  // Default to filtering by tenant_id only
+            let expressionAttributeValues = {
+                ':tenantId': tokenItem.Item.tenant_id
+            };
+
+            // If product_id is provided, include it in the query
+            if (product_id) {
+                keyConditionExpression += ' AND product_id = :productId';
+                expressionAttributeValues[':productId'] = product_id;
+            }
+
+            // Execute the query
             result = await docClient.send(new QueryCommand({
                 TableName: PURCHASABLES_TABLE,
-                KeyConditionExpression: 'tenant_id = :tenantId AND product_id = :productId',  // Primary Key query
-                ExpressionAttributeValues: {
-                    ':tenantId': tokenItem.Item.tenant_id,
-                    ':productId': product_id
-                },
+                KeyConditionExpression: keyConditionExpression,  // Primary Key query
+                ExpressionAttributeValues: expressionAttributeValues,
                 Limit: queryLimit,
                 ExclusiveStartKey: lastEvaluatedKey ? JSON.parse(lastEvaluatedKey) : undefined,
             }));
         }
 
-        // Step 5: Return the results
+// Step 5: Return the results
         return {
             statusCode: 200,
             body: {
-                items: result.Items,
+                result,
                 lastEvaluatedKey: result.LastEvaluatedKey ? JSON.stringify(result.LastEvaluatedKey) : null
             }
         };
+
 
     } catch (error) {
         console.error('Error processing request:', error);

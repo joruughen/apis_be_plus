@@ -1,4 +1,4 @@
-const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
+const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');  // Importar InvokeCommand correctamente
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, GetCommand, DeleteCommand } = require('@aws-sdk/lib-dynamodb');
 
@@ -7,8 +7,9 @@ const lambdaClient = new LambdaClient({});
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
-const PURCHASABLES_TABLE = `${process.env.STAGE}_t_purchasables`;
+const PURCHASABLES_TABLE = `${process.env.STAGE}_t_purchasable`;
 const TOKENS_TABLE = `${process.env.STAGE}_t_access_tokens`;
+const VALIDATE_FUNCTION_NAME = process.env.VALIDATE_FUNCTION_NAME;
 
 exports.handler = async (event, context) => {
     try {
@@ -17,7 +18,7 @@ exports.handler = async (event, context) => {
         if (!token) {
             return {
                 statusCode: 400,
-                body: { error: 'Missing Authorization token' }
+                body: JSON.stringify({ error: 'Missing Authorization token' })
             };
         }
 
@@ -26,7 +27,7 @@ exports.handler = async (event, context) => {
         if (!validateFunctionName) {
             return {
                 statusCode: 500,
-                body: { error: 'ValidateAccessToken function not configured' }
+                body: JSON.stringify({ error: 'ValidateAccessToken function not configured' })
             };
         }
 
@@ -40,11 +41,21 @@ exports.handler = async (event, context) => {
         if (validatePayload.statusCode === 403) {
             return {
                 statusCode: 403,
-                body: { error: validatePayload.body || 'Unauthorized Access' }
+                body: JSON.stringify({ error: validatePayload.body || 'Unauthorized Access' })
             };
         }
 
-        // Recuperar tenant_id y student_id desde el token
+        // Acceder directamente al body de la solicitud
+        const { product_id } = event.body;
+
+        if (!product_id) {
+            return {
+                statusCode: 400,
+                body: JSON.stringify({ error: 'Missing product_id in request body' })
+            };
+        }
+
+        // Recuperar tenant_id y student_id del token
         const tokenItem = await docClient.send(new GetCommand({
             TableName: TOKENS_TABLE,
             Key: { token }
@@ -58,26 +69,9 @@ exports.handler = async (event, context) => {
         }
 
         const tenantId = tokenItem.Item.tenant_id;
-        const studentId = tokenItem.Item.student_id;
 
-        if (!tenantId || !studentId) {
-            return {
-                statusCode: 500,
-                body: { error: 'Missing tenant_id or student_id in token' }
-            };
-        }
 
-        // Acceder directamente al body de la solicitud
-        const { product_id } = event.body;
-
-        if (!product_id) {
-            return {
-                statusCode: 400,
-                body: { error: 'Missing product_id in request body' }
-            };
-        }
-
-        // Verificar si el purchasable existe para este tenant_id y product_id
+        // Verificar si el purchasable existe para este product_id
         const existingPurchasable = await docClient.send(new GetCommand({
             TableName: PURCHASABLES_TABLE,
             Key: { tenant_id: tenantId, product_id: product_id }
@@ -86,15 +80,7 @@ exports.handler = async (event, context) => {
         if (!existingPurchasable.Item) {
             return {
                 statusCode: 404,
-                body: { error: 'Purchasable not found for this tenant_id and product_id' }
-            };
-        }
-
-        // Verificar que el student_id del purchasable coincide con el student_id del token
-        if (existingPurchasable.Item.student_id !== studentId) {
-            return {
-                statusCode: 403,
-                body: { error: 'Student ID mismatch, cannot delete this purchasable' }
+                body: { error: 'Purchasable not found for this product_id' }
             };
         }
 
