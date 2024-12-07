@@ -74,33 +74,64 @@ def lambda_handler(event, context):
         }
 
     # Obtener datos del cuerpo del evento
-    if 'body' in event:
-        try:
-            body = json.loads(event['body'])
-        except json.JSONDecodeError:
-            return {
-                'statusCode': 400,
-                'body': 'El cuerpo de la solicitud no es un JSON válido'
-            }
-    else:
+    body = event.get('body')
+    if not body:
         return {
             'statusCode': 400,
             'body': 'Falta el cuerpo de la solicitud'
+        }
+
+    try:
+        body = event.get('body')
+    except json.JSONDecodeError:
+        return {
+            'statusCode': 400,
+            'body': 'El cuerpo de la solicitud no es un JSON válido'
         }
 
     # Conectar con la tabla de estudiantes
     t_students = dynamodb.Table(f"{stage}_t_students")
 
     try:
-        # Construir expresión de actualización
+        # Recuperar el item actual para preservar campos existentes
+        current_student = t_students.get_item(Key={'tenant_id': tenant_id, 'student_id': student_id})
+
+        if 'Item' not in current_student:
+            return {
+                'statusCode': 404,
+                'body': 'Estudiante no encontrado'
+            }
+
+        current_data = current_student['Item']
+
+        # Definir claves prohibidas para modificación
+        forbidden_keys = ['tenant_id', 'student_id']
+
+        # Construir expresión de actualización solo con campos proporcionados
         update_expression = "SET "
         expression_attribute_values = {}
 
+        # Procesar cada campo del cuerpo
         for key, value in body.items():
-            if key == "token":  # Asegurar que el token no se modifica
+            # Omitir claves prohibidas
+            if key in forbidden_keys:
                 continue
-            update_expression += f"{key} = :{key}, "
-            expression_attribute_values[f":{key}"] = value
+
+            if key == "student_data":
+                # Fusionar datos de `student_data`
+                if "student_data" in current_data:
+                    merged_data = current_data["student_data"]
+                    merged_data.update(value)  # Combinar datos existentes con los nuevos
+                else:
+                    merged_data = value  # No hay datos existentes, usar los nuevos
+
+                # Agregar `student_data` fusionado a la expresión
+                update_expression += f"{key} = :{key}, "
+                expression_attribute_values[f":{key}"] = merged_data
+            else:
+                # Actualizar otros campos
+                update_expression += f"{key} = :{key}, "
+                expression_attribute_values[f":{key}"] = value
 
         # Validar que existan datos para actualizar
         if not expression_attribute_values:
@@ -127,7 +158,10 @@ def lambda_handler(event, context):
                 'body': 'Error al obtener los datos actualizados del estudiante'
             }
 
+        # Eliminar campos sensibles antes de devolver
         updated_data = convert_decimal(updated_response['Item'])
+        updated_data.pop('password', None)
+
         return {
             'statusCode': 200,
             'body': json.dumps(updated_data)
@@ -139,4 +173,3 @@ def lambda_handler(event, context):
             'statusCode': 500,
             'body': f"Error interno del servidor: {str(e)}"
         }
-
